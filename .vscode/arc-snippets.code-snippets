@@ -1,0 +1,268 @@
+{
+    "ARC Task Definition": {
+        "prefix": "arc-task",
+        "body": [
+            "@dataclass",
+            "class ARCTask:",
+            "    \"\"\"ARC (Abstraction and Reasoning Corpus) task definition.\"\"\"",
+            "    ",
+            "    task_id: str",
+            "    train_examples: List[ARCExample]",
+            "    test_examples: List[ARCExample]",
+            "    ",
+            "    def get_grid_size(self) -> Tuple[int, int]:",
+            "        \"\"\"Get the most common grid size in training examples.\"\"\"",
+            "        sizes = [example.input_grid.shape for example in self.train_examples]",
+            "        return max(set(sizes), key=sizes.count)",
+            "    ",
+            "    def get_color_palette(self) -> Set[int]:",
+            "        \"\"\"Get all colors used in this task.\"\"\"",
+            "        colors = set()",
+            "        for example in self.train_examples + self.test_examples:",
+            "            colors.update(np.unique(example.input_grid))",
+            "            colors.update(np.unique(example.output_grid))",
+            "        return colors"
+        ],
+        "description": "Create ARC task definition with basic methods"
+    },
+
+    "ARC Example Definition": {
+        "prefix": "arc-example",
+        "body": [
+            "@dataclass",
+            "class ARCExample:",
+            "    \"\"\"Single input-output example from an ARC task.\"\"\"",
+            "    ",
+            "    input_grid: np.ndarray",
+            "    output_grid: np.ndarray",
+            "    ",
+            "    def __post_init__(self):",
+            "        \"\"\"Validate grid shapes and types.\"\"\"",
+            "        if not isinstance(self.input_grid, np.ndarray):",
+            "            self.input_grid = np.array(self.input_grid)",
+            "        if not isinstance(self.output_grid, np.ndarray):",
+            "            self.output_grid = np.array(self.output_grid)",
+            "    ",
+            "    @property",
+            "    def transformation_type(self) -> str:",
+            "        \"\"\"Classify the type of transformation.\"\"\"",
+            "        if self.input_grid.shape == self.output_grid.shape:",
+            "            return 'same_size'",
+            "        elif np.prod(self.output_grid.shape) < np.prod(self.input_grid.shape):",
+            "            return 'reduction'",
+            "        else:",
+            "            return 'expansion'"
+        ],
+        "description": "Create ARC example definition with transformation analysis"
+    },
+
+    "ARC Strategy Interface": {
+        "prefix": "arc-strategy",
+        "body": [
+            "class ${1:StrategyName}(ARCStrategy):",
+            "    \"\"\"${2:Strategy description}.\"\"\"",
+            "    ",
+            "    def __init__(self, config: Dict[str, Any] = None):",
+            "        super().__init__()",
+            "        self.config = config or {}",
+            "        self.name = '${1/(.*)/${1:/downcase}/}'",
+            "    ",
+            "    def can_solve(self, task: ARCTask) -> bool:",
+            "        \"\"\"Check if this strategy can solve the given task.\"\"\"",
+            "        ${3:# Implementation here}",
+            "        return ${4:True}",
+            "    ",
+            "    def solve(self, task: ARCTask) -> np.ndarray:",
+            "        \"\"\"Solve the ARC task and return the output grid.\"\"\"",
+            "        if not self.can_solve(task):",
+            "            raise ValueError(f'Strategy {self.name} cannot solve this task')",
+            "        ",
+            "        ${5:# Implementation here}",
+            "        return ${6:output_grid}",
+            "    ",
+            "    def get_confidence(self, task: ARCTask) -> float:",
+            "        \"\"\"Return confidence score for this strategy on the given task.\"\"\"",
+            "        return ${7:0.5}"
+        ],
+        "description": "Create ARC strategy implementation"
+    },
+
+    "Grid Transformation Function": {
+        "prefix": "arc-transform",
+        "body": [
+            "def ${1:transform_name}(grid: np.ndarray, **kwargs) -> np.ndarray:",
+            "    \"\"\"${2:Transformation description}.",
+            "    ",
+            "    Args:",
+            "        grid: Input grid as numpy array",
+            "        **kwargs: Additional transformation parameters",
+            "    ",
+            "    Returns:",
+            "        Transformed grid as numpy array",
+            "    \"\"\"",
+            "    if grid.ndim != 2:",
+            "        raise ValueError('Grid must be 2-dimensional')",
+            "    ",
+            "    rows, cols = grid.shape",
+            "    ${3:# Transformation logic here}",
+            "    ",
+            "    return ${4:transformed_grid}"
+        ],
+        "description": "Create grid transformation function"
+    },
+
+    "Platform Detection": {
+        "prefix": "arc-platform",
+        "body": [
+            "from src.infrastructure.config import PlatformDetector, get_config",
+            "",
+            "# Detect current platform",
+            "platform = PlatformDetector.detect_platform()",
+            "platform_info = PlatformDetector.get_platform_info()",
+            "",
+            "# Get platform-specific configuration",
+            "config = get_config()",
+            "data_dir = config.get_data_dir()",
+            "output_dir = config.get_output_dir()",
+            "",
+            "print(f'Running on: {platform.value}')",
+            "print(f'GPU available: {PlatformDetector.is_gpu_available()}')",
+            "print(f'Memory limit: {platform_info.max_memory_gb}GB')"
+        ],
+        "description": "Platform detection and configuration setup"
+    },
+
+    "ARC Test Case": {
+        "prefix": "arc-test",
+        "body": [
+            "def test_${1:test_name}():",
+            "    \"\"\"Test ${2:functionality description}.\"\"\"",
+            "    # Arrange",
+            "    input_grid = np.array([",
+            "        [${3:0, 0, 1}],",
+            "        [${4:1, 0, 0}],",
+            "        [${5:0, 1, 0}]",
+            "    ])",
+            "    expected_output = np.array([",
+            "        [${6:1, 1, 0}],",
+            "        [${7:0, 1, 1}],",
+            "        [${8:1, 0, 1}]",
+            "    ])",
+            "    ",
+            "    # Act",
+            "    result = ${9:function_to_test}(input_grid)",
+            "    ",
+            "    # Assert",
+            "    np.testing.assert_array_equal(result, expected_output)",
+            "    assert result.shape == expected_output.shape",
+            "    assert result.dtype == expected_output.dtype"
+        ],
+        "description": "Create ARC-specific test case"
+    },
+
+    "FastAPI Endpoint": {
+        "prefix": "arc-endpoint",
+        "body": [
+            "@router.${1|get,post,put,delete|}('/${2:endpoint}')",
+            "async def ${3:endpoint_name}(${4:request: RequestModel}) -> ${5:ResponseModel}:",
+            "    \"\"\"${6:Endpoint description}.\"\"\"",
+            "    try:",
+            "        config = get_config()",
+            "        platform_info = config.get_platform_info()",
+            "        ",
+            "        ${7:# Implementation here}",
+            "        ",
+            "        return ${5:ResponseModel}(${8:result=result})",
+            "    except Exception as e:",
+            "        logger.error(f'Error in ${3:endpoint_name}: {e}')",
+            "        raise HTTPException(status_code=500, detail=str(e))"
+        ],
+        "description": "Create FastAPI endpoint with error handling"
+    },
+
+    "Async Processing": {
+        "prefix": "arc-async",
+        "body": [
+            "async def ${1:process_name}(${2:parameters}) -> ${3:ReturnType}:",
+            "    \"\"\"${4:Async processing description}.\"\"\"",
+            "    config = get_config()",
+            "    max_concurrent = config.get('resources.max_concurrent_tasks', 4)",
+            "    ",
+            "    semaphore = asyncio.Semaphore(max_concurrent)",
+            "    ",
+            "    async def process_item(item):",
+            "        async with semaphore:",
+            "            ${5:# Processing logic here}",
+            "            return ${6:result}",
+            "    ",
+            "    tasks = [process_item(item) for item in ${7:items}]",
+            "    results = await asyncio.gather(*tasks, return_exceptions=True)",
+            "    ",
+            "    # Handle exceptions",
+            "    successful_results = []",
+            "    for result in results:",
+            "        if isinstance(result, Exception):",
+            "            logger.error(f'Processing error: {result}')",
+            "        else:",
+            "            successful_results.append(result)",
+            "    ",
+            "    return successful_results"
+        ],
+        "description": "Create async processing function with concurrency control"
+    },
+
+    "Memory Monitoring": {
+        "prefix": "arc-memory",
+        "body": [
+            "import psutil",
+            "import gc",
+            "from src.infrastructure.config import get_config",
+            "",
+            "def monitor_memory_usage(func):",
+            "    \"\"\"Decorator to monitor memory usage of a function.\"\"\"",
+            "    def wrapper(*args, **kwargs):",
+            "        config = get_config()",
+            "        max_memory_gb = config.get('resources.max_memory_gb', 8)",
+            "        ",
+            "        # Check memory before execution",
+            "        memory_before = psutil.virtual_memory()",
+            "        if memory_before.percent > 80:",
+            "            gc.collect()  # Force garbage collection",
+            "        ",
+            "        result = func(*args, **kwargs)",
+            "        ",
+            "        # Check memory after execution",
+            "        memory_after = psutil.virtual_memory()",
+            "        used_gb = memory_after.used / (1024**3)",
+            "        ",
+            "        if used_gb > max_memory_gb * 0.9:",
+            "            logger.warning(f'High memory usage: {used_gb:.1f}GB')",
+            "        ",
+            "        return result",
+            "    return wrapper"
+        ],
+        "description": "Memory monitoring decorator"
+    },
+
+    "Error Handling": {
+        "prefix": "arc-error",
+        "body": [
+            "try:",
+            "    ${1:# Code that might raise exceptions}",
+            "except (ValueError, TypeError) as e:",
+            "    logger.error(f'Input validation error: {e}')",
+            "    raise HTTPException(status_code=400, detail=str(e))",
+            "except MemoryError:",
+            "    logger.error('Out of memory error')",
+            "    gc.collect()  # Try to free memory",
+            "    raise HTTPException(status_code=507, detail='Insufficient memory')",
+            "except TimeoutError:",
+            "    logger.error('Operation timeout')",
+            "    raise HTTPException(status_code=408, detail='Request timeout')",
+            "except Exception as e:",
+            "    logger.error(f'Unexpected error: {e}', exc_info=True)",
+            "    raise HTTPException(status_code=500, detail='Internal server error')"
+        ],
+        "description": "Comprehensive error handling pattern"
+    }
+}

@@ -1,0 +1,88 @@
+{
+    "recommendations": [
+        // Python development
+        "ms-python.python",
+        "ms-python.black-formatter",
+        "ms-python.mypy-type-checker",
+        "charliermarsh.ruff",
+        
+        // AI-assisted coding
+        "codeium.codeium",
+        
+        // FastAPI and web development
+        "ms-python.fastapi",
+        "ms-vscode.rest-client",
+        
+        // Data science and ML
+        "ms-toolsai.jupyter",
+        "ms-toolsai.jupyter-keymap",
+        "ms-toolsai.jupyter-renderers",
+        "ms-toolsai.vscode-jupyter-cell-tags",
+        "ms-toolsai.vscode-jupyter-slideshow",
+        
+        // Docker and containers
+        "ms-vscode-remote.remote-containers",
+        "ms-azuretools.vscode-docker",
+        
+        // Git and version control
+        "github.vscode-pull-request-github",
+        "github.copilot",
+        "github.copilot-chat",
+        "mhutchie.git-graph",
+        
+        // Configuration and data files
+        "redhat.vscode-yaml",
+        "ms-vscode.vscode-json",
+        "bungcip.better-toml",
+        
+        // Testing
+        "ms-python.pytest",
+        "hbenl.vscode-test-explorer",
+        
+        // Code quality and documentation
+        "ms-python.pylint",
+        "njpwerner.autodocstring",
+        "lextudio.restructuredtext",
+        
+        // Utilities
+        "ms-vscode.vscode-thunder-client",
+        "rangav.vscode-thunder-client",
+        "humao.rest-client",
+        "alexcvzz.vscode-sqlite",
+        
+        // Platform-specific (optional)
+        "ms-vscode-remote.remote-ssh",
+        "ms-vscode-remote.remote-wsl",
+        
+        // Markdown and documentation
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-mermaid",
+        "davidanson.vscode-markdownlint",
+        
+        // Theme and UI enhancements
+        "pkief.material-icon-theme",
+        "ms-vscode.theme-tomorrowkit",
+        
+        // Productivity
+        "streetsidesoftware.code-spell-checker",
+        "ms-vscode.todo-highlight",
+        "aaron-bond.better-comments",
+        
+        // Language support
+        "ms-vscode.makefile-tools",
+        "tamasfe.even-better-toml"
+    ],
+    
+    "unwantedRecommendations": [
+        // Avoid conflicting Python extensions
+        "ms-python.flake8",
+        "ms-python.pylint",
+        
+        // Avoid duplicate AI assistants
+        "github.copilot",
+        "tabnine.tabnine-vscode",
+        
+        // Avoid conflicting formatters
+        "ms-python.autopep8"
+    ]
+}

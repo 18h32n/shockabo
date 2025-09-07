@@ -1,0 +1,113 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: FastAPI",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/adapters/api/app.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "ENVIRONMENT": "development"
+            },
+            "args": ["--host", "0.0.0.0", "--port", "8000", "--reload"]
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        },
+        {
+            "name": "Python: Pytest Current File",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["${file}", "-v"],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        },
+        {
+            "name": "Python: Pytest All Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["tests/", "-v", "--tb=short"],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "ENVIRONMENT": "testing"
+            }
+        },
+        {
+            "name": "Python: Hello ARC Test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/hello_arc.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        },
+        {
+            "name": "Python: Platform Setup - Kaggle",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/platform_deploy/kaggle_setup.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "PLATFORM_OVERRIDE": "kaggle"
+            }
+        },
+        {
+            "name": "Python: Platform Setup - Colab",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/platform_deploy/colab_setup.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "PLATFORM_OVERRIDE": "colab"
+            }
+        },
+        {
+            "name": "Python: Platform Setup - Paperspace",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/platform_deploy/paperspace_setup.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "PLATFORM_OVERRIDE": "paperspace"
+            }
+        },
+        {
+            "name": "Python: Debug Training",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/domain/services/strategy_router.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "DEBUG": "true"
+            }
+        }
+    ]
+}

@@ -1,0 +1,63 @@
+# Paperspace Platform Configuration
+# Optimized for Paperspace Gradient environment
+
+platform:
+  name: "paperspace"
+  gpu_hours_limit: 6
+  memory_limit_gb: 8
+  has_persistent_storage: true
+  
+paths:
+  data_dir: "/storage/data"
+  working_dir: "/storage"
+  cache_dir: "/storage/cache"
+  logs_dir: "/storage/logs"
+  models_dir: "/storage/models"
+  
+database:
+  url: "sqlite:////storage/arc_prize.db"
+  
+cache:
+  directory: "/storage/cache"
+  size_limit: "500MB"  # Very conservative due to limited resources
+  
+logging:
+  level: "INFO"
+  file: "/storage/logs/arc_prize.log"
+  
+model:
+  device: "cuda"
+  batch_size: 8    # Small batch size for limited GPU memory
+  use_fp16: true
+  max_length: 512  # Very conservative for memory
+  
+training:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  use_gpu: true
+  
+inference:
+  batch_size: 8
+  use_gpu: true
+  
+resources:
+  max_memory_gb: 6   # Very conservative
+  max_concurrent_tasks: 1  # Minimal parallelism
+  gpu_memory_fraction: 0.7
+  
+features:
+  hot_reload: false
+  experiment_tracking: false  # Disabled to save resources
+  ttt_training: false  # Disabled due to resource constraints
+  program_synthesis: false
+  
+paperspace:
+  storage_persistent: true
+  auto_shutdown_minutes: 60  # Auto-shutdown to save GPU hours
+  
+# Aggressive optimizations for limited resources
+optimizations:
+  model_quantization: true
+  aggressive_memory_management: true
+  minimal_logging: true
+  disable_debug_features: true

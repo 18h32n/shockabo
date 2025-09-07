@@ -1,0 +1,77 @@
+{
+    "codeium": {
+        "enableCodeCompletion": true,
+        "enableInlineCompletion": true,
+        "enableCodeChat": true,
+        "language_server": "codeium-lsp",
+        
+        "languages": {
+            "python": {
+                "enabled": true,
+                "suggestions": true,
+                "context_aware": true,
+                "completion_priority": "high"
+            },
+            "yaml": {
+                "enabled": true,
+                "suggestions": true
+            },
+            "json": {
+                "enabled": true,
+                "suggestions": true
+            },
+            "dockerfile": {
+                "enabled": true,
+                "suggestions": true
+            },
+            "markdown": {
+                "enabled": true,
+                "suggestions": true
+            },
+            "toml": {
+                "enabled": true,
+                "suggestions": true
+            }
+        },
+        
+        "context": {
+            "include_imports": true,
+            "include_docstrings": true,
+            "include_comments": true,
+            "max_context_lines": 1000
+        },
+        
+        "filtering": {
+            "exclude_patterns": [
+                "**/.git/**",
+                "**/node_modules/**",
+                "**/__pycache__/**",
+                "**/.pytest_cache/**",
+                "**/.mypy_cache/**",
+                "**/data/**",
+                "**/logs/**",
+                "**/*.pyc"
+            ]
+        },
+        
+        "arc_specific": {
+            "domain_context": [
+                "ARC (Abstraction and Reasoning Corpus)",
+                "Visual pattern recognition",
+                "Grid-based transformations",
+                "Machine learning competition",
+                "Kaggle competition",
+                "Python ML/AI development"
+            ],
+            
+            "preferred_patterns": [
+                "Type hints for all function parameters",
+                "Descriptive variable names",
+                "Comprehensive docstrings",
+                "Error handling for external APIs",
+                "Platform-agnostic code patterns",
+                "Performance-conscious implementations"
+            ]
+        }
+    }
+}

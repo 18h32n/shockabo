@@ -1,0 +1,276 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Setup: Create Virtual Environment",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "venv", "venv"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Setup: Install Dependencies",
+            "type": "shell",
+            "command": "pip",
+            "args": ["install", "-e", ".[dev]"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "dependsOn": "Setup: Create Virtual Environment",
+            "problemMatcher": []
+        },
+        {
+            "label": "Lint: Ruff Check",
+            "type": "shell",
+            "command": "ruff",
+            "args": ["check", "src/", "tests/", "scripts/"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                {
+                    "owner": "ruff",
+                    "fileLocation": "absolute",
+                    "pattern": {
+                        "regexp": "^(.+):(\\d+):(\\d+):\\s+(\\w+)\\s+(.+)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                }
+            ]
+        },
+        {
+            "label": "Lint: Ruff Fix",
+            "type": "shell",
+            "command": "ruff",
+            "args": ["check", "--fix", "src/", "tests/", "scripts/"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Format: Black",
+            "type": "shell",
+            "command": "black",
+            "args": ["src/", "tests/", "scripts/"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Type Check: MyPy",
+            "type": "shell",
+            "command": "mypy",
+            "args": ["src/"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                {
+                    "owner": "mypy",
+                    "fileLocation": "absolute",
+                    "pattern": {
+                        "regexp": "^(.+):(\\d+):\\s+(.+):\\s+(.+)$",
+                        "file": 1,
+                        "line": 2,
+                        "severity": 3,
+                        "message": 4
+                    }
+                }
+            ]
+        },
+        {
+            "label": "Test: Pytest Unit",
+            "type": "shell",
+            "command": "pytest",
+            "args": ["tests/unit/", "-v", "--tb=short"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Test: Pytest Integration",
+            "type": "shell",
+            "command": "pytest",
+            "args": ["tests/integration/", "-v", "--tb=short"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Test: Pytest All",
+            "type": "shell",
+            "command": "pytest",
+            "args": ["tests/", "-v", "--tb=short", "--cov=src", "--cov-report=term-missing"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Quality: Full Check",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Lint: Ruff Check",
+                "Type Check: MyPy",
+                "Test: Pytest All"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Platform: Hello ARC Test",
+            "type": "shell",
+            "command": "python",
+            "args": ["scripts/hello_arc.py"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Platform: Setup Kaggle",
+            "type": "shell",
+            "command": "python",
+            "args": ["scripts/platform_deploy/kaggle_setup.py"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Platform: Setup Colab",
+            "type": "shell",
+            "command": "python",
+            "args": ["scripts/platform_deploy/colab_setup.py"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Platform: Setup Paperspace",
+            "type": "shell",
+            "command": "python",
+            "args": ["scripts/platform_deploy/paperspace_setup.py"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker: Build",
+            "type": "shell",
+            "command": "docker",
+            "args": ["build", "-t", "arc-prize-2025", "."],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker: Run",
+            "type": "shell",
+            "command": "docker",
+            "args": ["run", "-p", "8000:8000", "arc-prize-2025"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

@@ -1,0 +1,55 @@
+# Podman-compatible override for docker-compose
+# Use: podman-compose -f docker-compose.yaml -f docker-compose.podman.yaml up
+version: '3.8'
+
+services:
+  arc-app:
+    # Podman-specific adjustments
+    security_opt:
+      - label=disable
+    
+    # Use host networking on some Podman setups if needed
+    # network_mode: host
+    
+    # Podman volume syntax adjustments
+    volumes:
+      # Use absolute paths for Podman compatibility
+      - ${PWD}/../../src:/app/src:Z
+      - ${PWD}/../../scripts:/app/scripts:Z  
+      - ${PWD}/../../configs:/app/configs:Z
+      - ${PWD}/../../tests:/app/tests:Z
+      - ${PWD}/../../.env:/app/.env:ro,Z
+      
+      # Named volumes work the same in Podman
+      - arc-data:/app/data
+      - arc-logs:/app/logs
+      - arc-output:/app/output
+
+  redis:
+    # Podman security context
+    security_opt:
+      - label=disable
+
+  prometheus:
+    security_opt:
+      - label=disable
+    volumes:
+      - ${PWD}/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+      - prometheus-data:/prometheus
+
+  grafana:
+    security_opt:
+      - label=disable
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ${PWD}/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro,Z
+      - ${PWD}/grafana/datasources:/etc/grafana/provisioning/datasources:ro,Z
+
+  jupyter:
+    security_opt:
+      - label=disable
+    volumes:
+      - ${PWD}/../../notebooks:/app/notebooks:Z
+      - ${PWD}/../../src:/app/src:Z
+      - ${PWD}/../../data:/app/data:Z
+      - arc-data:/app/data

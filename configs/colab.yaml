@@ -1,0 +1,64 @@
+# Google Colab Platform Configuration
+# Optimized for Google Colab environment
+
+platform:
+  name: "colab"
+  gpu_hours_limit: 12
+  memory_limit_gb: 16
+  has_persistent_storage: false  # Colab has no persistent storage
+  
+paths:
+  data_dir: "/content/data"
+  working_dir: "/content"
+  cache_dir: "/content/cache"
+  logs_dir: "/content/logs"
+  models_dir: "/content/models"
+  
+database:
+  url: "sqlite:////content/arc_prize.db"
+  
+cache:
+  directory: "/content/cache"
+  size_limit: "1GB"  # Conservative due to memory limits
+  
+logging:
+  level: "INFO"
+  file: "/content/logs/arc_prize.log"
+  
+model:
+  device: "cuda"
+  batch_size: 16   # Moderate batch size for Colab GPU
+  use_fp16: true
+  max_length: 1024  # Reduced for memory constraints
+  
+training:
+  batch_size: 8
+  gradient_accumulation_steps: 2
+  use_gpu: true
+  
+inference:
+  batch_size: 16
+  use_gpu: true
+  
+resources:
+  max_memory_gb: 12  # Conservative memory usage
+  max_concurrent_tasks: 2  # Limited parallelism
+  gpu_memory_fraction: 0.8
+  
+features:
+  hot_reload: false
+  experiment_tracking: true
+  ttt_training: false  # Disabled due to memory constraints
+  program_synthesis: true
+  
+colab:
+  drive_mount: "/content/drive"
+  mount_drive: false  # Optional Google Drive mounting
+  use_gpu: true
+  use_tpu: false
+  
+# Colab-specific optimizations
+optimizations:
+  auto_restart_on_memory_error: true
+  clear_cache_frequently: true
+  offload_unused_models: true

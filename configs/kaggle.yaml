@@ -1,0 +1,58 @@
+# Kaggle Platform Configuration
+# Optimized for Kaggle Notebooks environment
+
+platform:
+  name: "kaggle"
+  gpu_hours_limit: 30
+  memory_limit_gb: 32
+  has_persistent_storage: true
+  
+paths:
+  data_dir: "/kaggle/input"
+  working_dir: "/kaggle/working"
+  cache_dir: "/kaggle/working/cache"
+  logs_dir: "/kaggle/working/logs"
+  models_dir: "/kaggle/working/models"
+
+database:
+  url: "sqlite:////kaggle/working/arc_prize.db"
+  
+cache:
+  directory: "/kaggle/working/cache"
+  size_limit: "2GB"  # More generous on Kaggle
+  
+logging:
+  level: "INFO"
+  file: "/kaggle/working/logs/arc_prize.log"
+  
+model:
+  device: "cuda"  # Assume GPU availability
+  batch_size: 32   # Larger batch size for GPU
+  use_fp16: true   # Enable mixed precision
+  
+training:
+  batch_size: 16
+  gradient_accumulation_steps: 1
+  use_gpu: true
+  
+inference:
+  batch_size: 32
+  use_gpu: true
+  
+resources:
+  max_memory_gb: 28  # Leave some headroom
+  max_concurrent_tasks: 4
+  gpu_memory_fraction: 0.9
+  
+features:
+  hot_reload: false
+  experiment_tracking: true
+  ttt_training: true
+  program_synthesis: true
+  
+kaggle:
+  dataset_mount_points:
+    - "/kaggle/input/arc-prize-2025"
+    - "/kaggle/input/arc-dataset"
+  kernel_type: "notebook"
+  internet_enabled: true

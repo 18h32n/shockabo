@@ -1,0 +1,210 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arc-prize-2025"
+version = "0.1.0"
+description = "ARC Prize 2025 Competition Solution"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "ARC Team", email = "team@example.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = "==3.12.7"
+dependencies = [
+    # Core Framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "python-socketio>=5.10.0",
+    
+    # AI/ML Stack
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "numpy>=1.24.0",
+    "scipy>=1.11.0",
+    
+    # Database & Storage
+    "sqlite3",  # Built-in with Python
+    "chromadb>=0.4.0",
+    "diskcache>=5.6.0",
+    
+    # Data Processing & Validation
+    "pydantic>=2.0.0",
+    "msgpack>=1.0.0",
+    "orjson>=3.9.0",
+    
+    # Infrastructure & Monitoring
+    "structlog>=23.0.0",
+    "prometheus-client>=0.19.0",
+    "supervisor>=4.2.0",
+    
+    # Development Tools
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.0",
+    "click>=8.1.0",
+    
+    # Platform Detection
+    "psutil>=5.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.0",  # For FastAPI testing
+    
+    # Code Quality
+    "ruff>=0.1.0",
+    "black>=23.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+    
+    # Documentation
+    "sphinx>=7.1.0",
+    "sphinx-autoapi>=3.0.0",
+]
+
+kaggle = [
+    # Kaggle-specific packages
+    "kaggle>=1.5.0",
+]
+
+colab = [
+    # Google Colab specific packages
+    "google-colab",
+]
+
+paperspace = [
+    # Paperspace specific packages
+    "gradient>=2.0.0",
+]
+
+[project.scripts]
+arc-init = "scripts.init_project:main"
+arc-migrate = "scripts.migrate_db:main"
+arc-seed = "scripts.seed_data:main"
+arc-hello = "scripts.hello_arc:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/arc-prize-2025"
+Repository = "https://github.com/your-org/arc-prize-2025"
+Issues = "https://github.com/your-org/arc-prize-2025/issues"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "."
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.git
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | data
+)/
+'''
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "chromadb.*",
+    "diskcache.*",
+    "msgpack.*",
+    "orjson.*",
+    "psutil.*",
+    "supervisor.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "e2e: marks tests as end-to-end tests",
+    "kaggle: marks tests specific to Kaggle platform",
+    "colab: marks tests specific to Google Colab platform",
+    "paperspace: marks tests specific to Paperspace platform",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "scripts/*", "notebooks/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
