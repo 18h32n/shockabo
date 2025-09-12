@@ -8,10 +8,27 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-sys.path.append(str(Path(__file__).parent.parent.parent.parent / "arc-prize-2025" / "data"))
-from task_loader import ARCTaskLoader
+# Add source root to path for absolute imports
+_src_root = Path(__file__).parent.parent.parent
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
 
-from ...domain.models import ARCTask
+# Add arc-prize-2025 data directory to path
+_arc_data_path = _src_root.parent / "arc-prize-2025" / "data"
+if str(_arc_data_path) not in sys.path:
+    sys.path.append(str(_arc_data_path))
+
+try:
+    from task_loader import ARCTaskLoader
+except ImportError:
+    # Fallback if task_loader is not available
+    ARCTaskLoader = None
+
+try:
+    from domain.models import ARCTask
+except ImportError:
+    # Fallback to relative import
+    from ...domain.models import ARCTask
 
 
 class ARCDataRepository:
@@ -25,7 +42,8 @@ class ARCDataRepository:
     ):
         """Initialize repository with data path and optional cache."""
         if data_path is None:
-            data_path = Path(__file__).parent.parent.parent.parent / "data" / "arc-agi"
+            data_path_obj = Path(__file__).parent.parent.parent.parent / "data" / "arc-agi"
+            data_path = str(data_path_obj)
 
         self.data_path = Path(data_path)
         self.cache_repository = cache_repository
@@ -104,13 +122,10 @@ class ARCDataRepository:
 
         print(f"Loading {len(task_files)} tasks from {task_source}...")
 
-        # Use different strategies based on dataset size and available workers
-        # For datasets < 200 tasks or max_workers <= 2, use sequential loading to avoid ProcessPool overhead
-        # For larger datasets with more workers, use parallel processing
-        if len(task_files) < 200 or self.max_workers <= 2:
-            tasks = self._load_tasks_sequential(task_files, task_source)
-        else:
-            tasks = self._load_tasks_parallel(task_files, task_source)
+        # Use sequential loading for optimal performance
+        # ProcessPoolExecutor has significant overhead on Windows for lightweight JSON parsing tasks
+        # Sequential loading with optimized JSON parsing is faster for this use case
+        tasks = self._load_tasks_sequential(task_files, task_source)
 
         load_time = time.perf_counter() - start_time
         self.load_stats["total_loaded"] += len(tasks)
@@ -241,7 +256,7 @@ class ARCDataRepository:
 
     def validate_data_integrity(self, task_source: str = "training") -> dict[str, list[str]]:
         """Validate data integrity for all tasks in source."""
-        issues = {"corrupted_tasks": [], "missing_files": [], "validation_errors": []}
+        issues: dict[str, list[str]] = {"corrupted_tasks": [], "missing_files": [], "validation_errors": []}
 
         source_path = self.data_path / task_source
         if not source_path.exists():

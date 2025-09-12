@@ -37,7 +37,8 @@ class SparseGridConverter:
             return []
 
         dense_array = sparse_matrix.toarray()
-        return dense_array.astype(int).tolist()
+        result: list[list[int]] = dense_array.astype(int).tolist()
+        return result
 
     @staticmethod
     def estimate_sparse_efficiency(grid: list[list[int]]) -> dict[str, Any]:
@@ -81,7 +82,7 @@ class MemoryEfficientTaskStorage:
 
     def store_task(self, task: ARCTask) -> dict[str, Any]:
         """Store task with optimal memory representation."""
-        task_data = {
+        task_data: dict[str, Any] = {
             "task_id": task.task_id,
             "task_source": task.task_source,
             "difficulty_level": task.difficulty_level,
@@ -334,7 +335,7 @@ class LazyTaskLoader:
             self._evict_least_recently_used()
 
         # Load task
-        task = self.repository.load_task(task_id, task_source)
+        task: ARCTask | None = self.repository.load_task(task_id, task_source)
         if task:
             self.loaded_tasks[task_id] = task
             self.access_order.append(task_id)

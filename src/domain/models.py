@@ -49,7 +49,7 @@ class ARCTask:
 
     def get_grid_dimensions(self) -> dict[str, list[tuple]]:
         """Get dimensions of all grids in the task."""
-        dimensions = {"train_input": [], "train_output": [], "test_input": [], "test_output": []}
+        dimensions: dict[str, list[tuple]] = {"train_input": [], "train_output": [], "test_input": [], "test_output": []}
 
         for example in self.train_examples:
             input_grid = example["input"]

@@ -1,12 +1,22 @@
 """Cache repository implementation using diskcache with LRU eviction."""
 
+import sys
 import time
 from pathlib import Path
 from typing import Any
 
 import diskcache as dc
 
-from ...domain.models import ARCTask
+# Add source root to path for absolute imports
+_src_root = Path(__file__).parent.parent.parent
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
+
+try:
+    from domain.models import ARCTask
+except ImportError:
+    # Fallback to relative import
+    from ...domain.models import ARCTask
 
 
 class CacheRepository:
@@ -20,7 +30,8 @@ class CacheRepository:
     ):
         """Initialize cache repository."""
         if cache_dir is None:
-            cache_dir = Path(__file__).parent.parent.parent.parent / "data" / "cache"
+            cache_dir_path = Path(__file__).parent.parent.parent.parent / "data" / "cache"
+            cache_dir = str(cache_dir_path)
 
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -62,7 +73,7 @@ class CacheRepository:
             result = self.cache.set(key, value, expire=expire)
             if result:
                 self.stats["sets"] += 1
-            return result
+            return bool(result)
         except Exception as e:
             print(f"Cache set error for key {key}: {e}")
             return False
@@ -70,7 +81,7 @@ class CacheRepository:
     def delete(self, key: str) -> bool:
         """Delete task from cache."""
         try:
-            return self.cache.delete(key)
+            return bool(self.cache.delete(key))
         except Exception as e:
             print(f"Cache delete error for key {key}: {e}")
             return False

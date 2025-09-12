@@ -98,7 +98,7 @@ class GridAugmentor:
 
         rows, cols = len(grid), len(grid[0])
         visited = [[False for _ in range(cols)] for _ in range(rows)]
-        color_components = {}
+        color_components: dict[int, list[int]] = {}
 
         def dfs(r: int, c: int, color: int) -> int:
             if (r < 0 or r >= rows or c < 0 or c >= cols or
@@ -282,7 +282,7 @@ class ARCTaskAugmentor:
         augmented_count = len(augmented_tasks)
 
         # Analyze augmentation types
-        aug_type_counts = {}
+        aug_type_counts: dict[str, int] = {}
         for task_id in augmented_tasks:
             if "_" in task_id:
                 parts = task_id.split("_")
@@ -358,4 +358,4 @@ class AugmentationValidator:
             return False
 
         comparison = AugmentationValidator.compare_grids(original_grid, restored)
-        return comparison["identical"]
+        return bool(comparison["identical"])

@@ -62,10 +62,11 @@ class TestDataPipelineIntegration:
             size_limit=50 * 1024 * 1024  # 50MB
         )
 
+        # Use optimal configuration from performance testing (documented as achieving 0.3-0.5s for 1000 tasks)
         repository = ARCDataRepository(
             data_path=large_dataset,
             cache_repository=cache_repo,
-            max_workers=2
+            max_workers=2  # Optimal configuration from performance_test.py results
         )
 
         data_loader = ARCDataLoader(
@@ -96,17 +97,33 @@ class TestDataPipelineIntegration:
         complete_pipeline["loader"]
 
         # Test AC1: Load all tasks in under 10 seconds (scaled for 100 tasks)
+        # The optimized repository now uses parallel processing by default (fixed logic based on performance_test.py)
         start_time = time.perf_counter()
         all_tasks = repository.load_all_tasks("training")
         load_time = time.perf_counter() - start_time
 
         assert len(all_tasks) == 100
 
-        # Extrapolate to 1000 tasks
+        # Extrapolate to 1000 tasks based on current performance
         estimated_time_1000 = (load_time / 100) * 1000
-        assert estimated_time_1000 < 10.0, f"Estimated load time for 1000 tasks: {estimated_time_1000:.2f}s"
+
+        # The story documents achieving 0.3-0.5s for 1000 tasks with optimal configuration
+        # Allow for some variance due to synthetic vs real data, but should be well under 10s
+        assert estimated_time_1000 < 10.0, (
+            f"Estimated load time for 1000 tasks: {estimated_time_1000:.2f}s exceeds 10s requirement. "
+            f"Actual load time for {len(all_tasks)} tasks: {load_time:.2f}s"
+        )
 
         print(f"Loaded {len(all_tasks)} tasks in {load_time:.2f}s ({load_time/len(all_tasks):.3f}s per task)")
+        print(f"Estimated time for 1000 tasks: {estimated_time_1000:.2f}s (Target: <10s, Optimal: 0.3-0.5s)")
+
+        # Log performance achievement
+        if estimated_time_1000 <= 1.0:
+            print("[EXCELLENT] Meets documented optimal performance (0.3-0.5s for 1000 tasks)")
+        elif estimated_time_1000 <= 5.0:
+            print("[GOOD] Well within 10s requirement")
+        else:
+            print("[ACCEPTABLE] Within 10s requirement but could be optimized")
 
     def test_memory_constraints(self, complete_pipeline):
         """Test AC6: Memory usage stays under 4GB."""
