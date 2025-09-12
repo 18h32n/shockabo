@@ -324,7 +324,7 @@ def show_memory_usage():
     """Display current memory usage."""
     memory = psutil.virtual_memory()
     print(f"Memory: {memory.used / (1024**3):.1f}GB / {memory.total / (1024**3):.1f}GB ({memory.percent:.1f}%)")
-    
+
 def cleanup_memory():
     """Force garbage collection and clear memory."""
     gc.collect()
@@ -353,16 +353,16 @@ def check_gpu_status():
 def setup_arc_environment():
     """Quick setup function for ARC development."""
     print("Setting up ARC Prize 2025 environment...")
-    
+
     # Import key modules
     try:
         from infrastructure.config import get_config, PlatformDetector
         config = get_config()
         platform = PlatformDetector.detect_platform()
-        
+
         print(f"✓ Platform detected: {platform.value}")
         print(f"✓ Configuration loaded")
-        
+
         return config
     except Exception as e:
         print(f"✗ Setup failed: {e}")
@@ -374,7 +374,7 @@ def save_to_drive(data, filename, subdir="output"):
     if drive_path:
         save_path = f"{drive_path}/MyDrive/ARC_Prize_2025/{subdir}/{filename}"
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        
+
         if isinstance(data, (dict, list)):
             import json
             with open(save_path, 'w') as f:
@@ -384,7 +384,7 @@ def save_to_drive(data, filename, subdir="output"):
         else:
             with open(save_path, 'w') as f:
                 f.write(str(data))
-        
+
         print(f"✓ Saved to Drive: {save_path}")
     else:
         print("Google Drive not mounted - cannot save")
@@ -456,7 +456,7 @@ def run_validation_tests(logger: logging.Logger) -> bool:
     try:
         sys.path.insert(0, '/content/src')
         from infrastructure.config import get_config
-        config = get_config()
+        get_config()
         logger.info("✓ Configuration import: PASSED")
     except Exception as e:
         logger.error(f"✗ Configuration import: FAILED - {e}")

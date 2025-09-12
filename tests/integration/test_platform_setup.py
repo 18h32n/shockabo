@@ -73,8 +73,8 @@ class TestPlatformSetupIntegration:
 
             # Test directory access
             data_dir = config.get_data_dir()
-            output_dir = config.get_output_dir()
-            cache_dir = config.get_cache_dir()
+            config.get_output_dir()
+            config.get_cache_dir()
 
             # These should be relative paths for local
             assert 'data' in str(data_dir)

@@ -1,0 +1,34 @@
+{
+  "2024_results": {
+    "MindsAI": {
+      "2023_accuracy": 0.33,
+      "2024_accuracy": 0.555,
+      "method": "Test-Time Training (TTT)",
+      "model": "Salesforce T5",
+      "improvement": 0.225
+    },
+    "ARChitects": {
+      "accuracy": 0.535,
+      "method": "TTT + Data Augmentation",
+      "model": "NeMo-Minitron-8B"
+    },
+    "Ekin Aky\u00fcrek": {
+      "baseline": 0.09,
+      "with_ttt": 0.53,
+      "improvement": 0.44,
+      "method": "TTT with 8B model"
+    },
+    "Ensemble (TTT + Program Synthesis)": {
+      "accuracy": 0.619,
+      "method": "Hybrid approach"
+    }
+  },
+  "projections": {
+    "optimistic": 0.8950000000000002,
+    "realistic": 0.6150000000000002,
+    "target": 0.85,
+    "gap": 0.23499999999999976
+  },
+  "recommendation": "PROCEED",
+  "confidence": "MEDIUM-HIGH"
+}

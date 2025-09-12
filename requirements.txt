@@ -1,0 +1,21 @@
+torch>=2.0.0
+transformers>=4.35.0
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+tqdm>=4.65.0
+scikit-learn>=1.3.0
+peft>=0.5.0  # For LoRA
+accelerate>=0.24.0
+datasets>=2.14.0
+jupyter>=1.0.0
+pytest>=7.4.0
+psutil>=5.9.0
+pyyaml>=6.0.0
+python-dotenv>=1.0.0
+pathlib
+diskcache>=5.6.0
+scipy>=1.11.0
+orjson>=3.9.0
+msgpack>=1.0.0

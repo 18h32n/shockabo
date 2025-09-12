@@ -16,7 +16,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
-    from infrastructure.config import Platform, PlatformDetector, get_config
+    from infrastructure.config import PlatformDetector, get_config
 except ImportError as e:
     print(f"ERROR: Cannot import configuration modules: {e}")
     print("Make sure the src directory is properly set up and PYTHONPATH is correct")
@@ -37,12 +37,12 @@ def print_banner():
     """Print the Hello ARC banner."""
     banner = """
     ================================================================
-    
+
                         HELLO ARC!
-    
+
                 ARC Prize 2025 Environment Test
               Cross-Platform Configuration Validator
-    
+
     ================================================================
     """
     print(banner)
@@ -256,7 +256,7 @@ def test_dependencies(logger: logging.Logger) -> dict[str, Any]:
     ]
 
     try:
-        for module_name, package_name in dependencies_to_test:
+        for module_name, _package_name in dependencies_to_test:
             try:
                 __import__(module_name)
                 results['details'][f'{module_name}_import'] = 'OK'

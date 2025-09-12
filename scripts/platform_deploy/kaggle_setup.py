@@ -257,7 +257,7 @@ def run_validation_tests(logger: logging.Logger) -> bool:
     try:
         sys.path.insert(0, '/kaggle/working/src')
         from infrastructure.config import get_config
-        config = get_config()
+        get_config()
         logger.info("✓ Configuration import: PASSED")
     except Exception as e:
         logger.error(f"✗ Configuration import: FAILED - {e}")
@@ -301,7 +301,7 @@ def main():
         directories = setup_directories(logger)
 
         # Step 3: Set up datasets
-        datasets = setup_kaggle_datasets(logger)
+        setup_kaggle_datasets(logger)
 
         # Step 4: Configure environment
         configure_environment_variables(logger, directories)

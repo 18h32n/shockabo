@@ -4,7 +4,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any
 
 import psutil
@@ -265,38 +265,38 @@ class ConfigManager:
         """Check if running in development mode."""
         return os.getenv('ENVIRONMENT', 'development').lower() == 'development'
 
-    def get_data_dir(self) -> str:
+    def get_data_dir(self) -> Path | PurePath:
         """Get platform-appropriate data directory."""
         if self.platform == Platform.KAGGLE:
-            return Path('/kaggle/input').as_posix()
+            return PurePosixPath('/kaggle/input')
         elif self.platform == Platform.COLAB:
-            return Path('/content/data').as_posix()
+            return PurePosixPath('/content/data')
         elif self.platform == Platform.PAPERSPACE:
-            return Path('/storage/data').as_posix()
+            return PurePosixPath('/storage/data')
         else:
-            return Path('data').as_posix()
+            return Path('data')
 
-    def get_output_dir(self) -> str:
+    def get_output_dir(self) -> Path | PurePath:
         """Get platform-appropriate output directory."""
         if self.platform == Platform.KAGGLE:
-            return Path('/kaggle/working').as_posix()
+            return PurePosixPath('/kaggle/working')
         elif self.platform == Platform.COLAB:
-            return Path('/content/output').as_posix()
+            return PurePosixPath('/content/output')
         elif self.platform == Platform.PAPERSPACE:
-            return Path('/storage/output').as_posix()
+            return PurePosixPath('/storage/output')
         else:
-            return Path('output').as_posix()
+            return Path('output')
 
-    def get_cache_dir(self) -> str:
+    def get_cache_dir(self) -> Path | PurePath:
         """Get platform-appropriate cache directory."""
         if self.platform == Platform.KAGGLE:
-            return Path('/kaggle/working/cache').as_posix()
+            return PurePosixPath('/kaggle/working/cache')
         elif self.platform == Platform.COLAB:
-            return Path('/content/cache').as_posix()
+            return PurePosixPath('/content/cache')
         elif self.platform == Platform.PAPERSPACE:
-            return Path('/storage/cache').as_posix()
+            return PurePosixPath('/storage/cache')
         else:
-            return Path('data/cache').as_posix()
+            return Path('data/cache')
 
 
 # Global configuration instance

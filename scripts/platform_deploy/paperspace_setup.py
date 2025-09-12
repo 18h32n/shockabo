@@ -151,7 +151,7 @@ while true; do
         sleep 300  # Check again in 5 minutes
         continue
     fi
-    
+
     # Check CPU usage
     CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | awk -F% '{print $1}')
     if (( $(echo "$CPU_USAGE > 5" | bc -l) )); then
@@ -159,7 +159,7 @@ while true; do
         sleep 300  # Check again in 5 minutes
         continue
     fi
-    
+
     # Check GPU usage if available
     if command -v nvidia-smi &> /dev/null; then
         GPU_USAGE=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | head -1)
@@ -169,11 +169,11 @@ while true; do
             continue
         fi
     fi
-    
+
     # If we get here, system appears idle
     echo "$(date): System idle for check period - sleeping 5 more minutes" >> $LOG_FILE
     sleep 300
-    
+
     # Double-check before shutdown
     if ! pgrep -f python > /dev/null && (( $(echo "$CPU_USAGE < 5" | bc -l) )); then
         echo "$(date): Initiating auto-shutdown due to inactivity" >> $LOG_FILE
@@ -466,7 +466,7 @@ def run_validation_tests(logger: logging.Logger) -> bool:
     try:
         sys.path.insert(0, '/storage/src')
         from infrastructure.config import get_config
-        config = get_config()
+        get_config()
         logger.info("✓ Configuration import: PASSED")
     except Exception as e:
         logger.error(f"✗ Configuration import: FAILED - {e}")
