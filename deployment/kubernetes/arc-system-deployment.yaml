@@ -1,0 +1,220 @@
+# Kubernetes deployment for ARC Prize 2025 System with health checks
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arc-system
+  namespace: arc-prize
+  labels:
+    app: arc-system
+    version: v1.3.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: arc-system
+  template:
+    metadata:
+      labels:
+        app: arc-system
+        version: v1.3.0
+    spec:
+      containers:
+      - name: arc-system
+        image: arc-prize-2025:v1.3.0
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        # Environment variables
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        - name: LOG_LEVEL
+          value: "info"
+        
+        # Resource limits and requests
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi" 
+            cpu: "1000m"
+        
+        # Health check probes using our endpoints
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 30  # Allow 5 minutes for startup
+        
+        # Volume mounts for persistent storage
+        volumeMounts:
+        - name: data-storage
+          mountPath: /app/data
+        - name: cache-storage
+          mountPath: /app/cache
+        - name: logs-storage
+          mountPath: /app/logs
+        
+      # Volumes for persistent data
+      volumes:
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: arc-data-pvc
+      - name: cache-storage
+        persistentVolumeClaim:
+          claimName: arc-cache-pvc
+      - name: logs-storage
+        emptyDir: {}
+      
+      # Restart policy and other settings
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      
+      # Node selection and affinity
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - arc-system
+              topologyKey: kubernetes.io/hostname
+
+---
+# Service for exposing the application
+apiVersion: v1
+kind: Service
+metadata:
+  name: arc-system-service
+  namespace: arc-prize
+  labels:
+    app: arc-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: arc-system
+
+---
+# Horizontal Pod Autoscaler based on health metrics
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: arc-system-hpa
+  namespace: arc-prize
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: arc-system
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# Pod Disruption Budget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: arc-system-pdb
+  namespace: arc-prize
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: arc-system
+
+---
+# NetworkPolicy for security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: arc-system-netpol
+  namespace: arc-prize
+spec:
+  podSelector:
+    matchLabels:
+      app: arc-system
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - {} # Allow all egress for external API calls

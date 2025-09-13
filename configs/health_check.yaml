@@ -1,0 +1,155 @@
+# Health Check Configuration
+# Configuration for system health monitoring and status checks
+
+health_check:
+  # Enable/disable health checks
+  enabled: true
+  
+  # Health check intervals and timeouts
+  check_interval_seconds: 30
+  timeout_seconds: 5
+  max_failures: 3
+  
+  # Response time thresholds (milliseconds)
+  degraded_threshold_ms: 1000.0
+  unhealthy_threshold_ms: 5000.0
+  
+  # Components to monitor
+  components_to_check:
+    - database
+    - cache
+    - wandb
+    - storage
+    - memory
+    - cpu
+  
+  # Component-specific settings
+  component_settings:
+    database:
+      timeout_seconds: 10
+      max_connection_time_ms: 5000
+      min_available_connections: 1
+      
+    cache:
+      timeout_seconds: 3
+      min_hit_rate_percent: 50.0
+      max_usage_percent: 90.0
+      test_operations: true
+      
+    wandb:
+      timeout_seconds: 15
+      check_usage_limits: true
+      max_usage_percent: 80.0
+      
+    storage:
+      timeout_seconds: 5
+      max_usage_percent: 85.0
+      critical_usage_percent: 95.0
+      test_write_access: true
+      
+    memory:
+      timeout_seconds: 2
+      max_usage_percent: 85.0
+      critical_usage_percent: 95.0
+      min_available_mb: 100
+      
+    cpu:
+      timeout_seconds: 1
+      max_usage_percent: 75.0
+      critical_usage_percent: 90.0
+      measurement_interval_seconds: 0.1
+
+# Performance monitoring settings
+performance_monitoring:
+  enabled: true
+  
+  # Metrics collection
+  collect_system_metrics: true
+  collect_component_metrics: true
+  collect_response_times: true
+  
+  # History and retention
+  max_history_entries: 100
+  metric_retention_hours: 24
+  
+  # Alerting thresholds
+  alert_thresholds:
+    high_cpu_percent: 80.0
+    high_memory_percent: 85.0
+    high_disk_percent: 90.0
+    slow_response_time_ms: 2000.0
+    high_error_rate_percent: 5.0
+
+# Kubernetes probe settings
+kubernetes:
+  probes:
+    liveness:
+      enabled: true
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 3
+      success_threshold: 1
+      
+    readiness:
+      enabled: true
+      initial_delay_seconds: 5
+      period_seconds: 5
+      timeout_seconds: 3
+      failure_threshold: 3
+      success_threshold: 1
+      
+    startup:
+      enabled: true
+      initial_delay_seconds: 0
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 30  # Allow 5 minutes for startup
+      success_threshold: 1
+
+# HTTP status code mapping
+http_status_codes:
+  healthy: 200
+  degraded: 200  # Still operational
+  unhealthy: 503
+  unknown: 503
+
+# Logging and reporting
+logging:
+  log_health_checks: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_performance_metrics: false  # Only log on issues
+  
+  # Log component details
+  log_component_details: true
+  log_error_details: true
+  log_response_times: true
+
+# External service monitoring
+external_services:
+  wandb:
+    enabled: true
+    endpoint: "https://api.wandb.ai"
+    timeout_seconds: 15
+    retry_attempts: 2
+    check_authentication: true
+    check_usage_limits: true
+    
+  # Add other external services as needed
+  # github:
+  #   enabled: false
+  #   endpoint: "https://api.github.com"
+  #   timeout_seconds: 10
+
+# Development and testing settings
+development:
+  mock_unhealthy_components: []  # List of components to mock as unhealthy
+  simulate_slow_responses: false
+  additional_test_components:
+    - test_component_1
+    - test_component_2
+    
+  # Override thresholds for testing
+  test_thresholds:
+    degraded_threshold_ms: 100.0
+    unhealthy_threshold_ms: 500.0
