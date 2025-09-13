@@ -75,21 +75,26 @@ class TestPlatformDetector:
 
     def test_detect_colab_environment(self):
         """Test detection of Google Colab environment."""
-        with mock.patch.dict(sys.modules, {'google.colab': mock.MagicMock()}):
-            platform = PlatformDetector.detect_platform()
-            assert platform == Platform.COLAB
+        with mock.patch('os.path.exists', return_value=False):
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch.dict(sys.modules, {'google.colab': mock.MagicMock()}):
+                    platform = PlatformDetector.detect_platform()
+                    assert platform == Platform.COLAB
 
     def test_detect_colab_with_env_var(self):
         """Test Colab detection with environment variable."""
-        with mock.patch.dict(os.environ, {'COLAB_GPU': '1'}):
-            platform = PlatformDetector.detect_platform()
-            assert platform == Platform.COLAB
+        with mock.patch('os.path.exists', return_value=False):
+            with mock.patch.dict(os.environ, {'COLAB_GPU': '1'}, clear=True):
+                platform = PlatformDetector.detect_platform()
+                assert platform == Platform.COLAB
 
     def test_detect_paperspace_environment(self):
         """Test detection of Paperspace environment."""
-        with mock.patch.dict(os.environ, {'PS_API_KEY': 'test-key'}):
-            platform = PlatformDetector.detect_platform()
-            assert platform == Platform.PAPERSPACE
+        with mock.patch('os.path.exists', return_value=False):
+            with mock.patch.dict(os.environ, {'PS_API_KEY': 'test-key'}, clear=True):
+                with mock.patch.dict(sys.modules, {}, clear=True):
+                    platform = PlatformDetector.detect_platform()
+                    assert platform == Platform.PAPERSPACE
 
     def test_detect_paperspace_with_directory(self):
         """Test Paperspace detection with directory check."""

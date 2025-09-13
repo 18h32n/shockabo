@@ -1,0 +1,134 @@
+# MIT TTT (Test-Time Training) Strategy Configuration
+# Based on MIT research: "The Surprising Effectiveness of Test-Time Training for Abstract Reasoning"
+
+model:
+  name: "meta-llama/Llama-3.2-1B"  # 1B parameter model for baseline (MIT used Llama3-8B)
+  device: "auto"  # Automatically select GPU/CPU
+  quantization: true  # Enable 8-bit quantization for memory efficiency
+  max_length: 2048
+  cache_dir: "data/models"
+  mixed_precision: true  # Enable BF16 mixed precision as per MIT research
+
+training:
+  # MIT TTT Training hyperparameters
+  learning_rate: 5e-5  # MIT base learning rate for fine-tuning
+  per_instance_lr: 1e-4  # MIT learning rate for per-instance adaptation
+  num_epochs: 2  # MIT uses 2-3 epochs for base training
+  per_instance_epochs: 1  # MIT uses 1-2 epochs for per-instance training
+  batch_size: 2  # MIT uses batch size 2 for TTT
+  gradient_accumulation_steps: 1  # MIT minimal accumulation
+  warmup_ratio: 0.1  # 10% warmup as per MIT research
+  max_grad_norm: 1.0
+  
+  # MIT TTT specific settings
+  max_training_time: 300  # 5 minutes per task (MIT constraint)
+  target_accuracy: 0.4  # 40% target accuracy
+  memory_limit_mb: 10240  # 10GB memory limit
+  max_examples: 5  # Maximum training examples per task
+  
+  # Optimization settings (MIT research)
+  mixed_precision: true  # Enable BF16 mixed precision
+  gradient_checkpointing: true  # Enable gradient checkpointing for memory
+
+lora:
+  # MIT TTT LoRA adaptation settings
+  rank: 64  # MIT uses rank 64 for better capacity
+  alpha: 16  # MIT alpha setting
+  dropout: 0.1
+  target_modules:  # Support both GPT-2 and Llama architectures
+    # GPT-2 Conv1D modules
+    - "c_attn"   # Combined query, key, value projection
+    - "c_proj"   # Output projection
+    # Llama Linear modules (fallback)
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  bias: "none"
+
+adaptation:
+  # MIT TTT Task adaptation settings
+  use_leave_one_out: true  # MIT uses leave-one-out splits
+  augmentation_strategy: "basic"  # "basic", "size", "chain", "all"
+  use_basic_augmentation: true  # MIT basic augmentations (rotation, flip)
+  use_size_augmentation: false  # MIT size-based augmentations
+  use_chain_augmentation: false  # MIT chained augmentations
+  
+  # Self-consistency settings (MIT research)
+  permute_n: 1  # Number of permutations for self-consistency
+  use_self_consistency: true  # Enable self-consistency voting
+  
+  # Data processing
+  use_gpt_format: true  # MIT uses GPT-style message formatting
+  text_representation: "python_list"  # MIT grid representation format
+  
+checkpoints:
+  # Checkpoint management
+  save_dir: "data/models/checkpoints"
+  max_checkpoints_per_task: 5
+  max_total_size_gb: 50
+  save_best_only: true
+  save_on_interrupt: true
+
+inference:
+  # MIT TTT Inference settings
+  temperature: 0.0  # MIT uses temperature 0 for deterministic output
+  top_p: 0.95
+  max_new_tokens: 500  # MIT constraint for grid generation
+  num_return_sequences: 1
+  do_sample: false  # Deterministic decoding
+  
+  # MIT TTT specific inference
+  use_adapted_model: true  # Use per-instance adapted model
+  aggregate_predictions: true  # Aggregate multiple augmented predictions
+  
+monitoring:
+  # MIT TTT Performance monitoring
+  log_frequency: 1  # Log every step for TTT
+  profile_memory: true
+  profile_time: true
+  save_metrics: true
+  metrics_file: "logs/mit_ttt_metrics.json"
+  
+  # MIT TTT specific monitoring
+  track_adaptation_metrics: true
+  track_memory_usage: true
+  track_per_instance_performance: true
+  save_adaptation_history: true
+
+# Platform-specific overrides for MIT TTT
+platform_overrides:
+  kaggle:
+    training:
+      batch_size: 1  # MIT constraint for Kaggle
+      gradient_accumulation_steps: 2
+      per_instance_epochs: 1
+    lora:
+      rank: 32  # Reduce rank for memory constraints
+    adaptation:
+      use_chain_augmentation: false
+  
+  colab:
+    training:
+      batch_size: 1
+      mixed_precision: true
+      gradient_checkpointing: true
+    model:
+      quantization: true  # Force quantization on Colab
+    lora:
+      rank: 32
+    adaptation:
+      permute_n: 1  # Single permutation for speed
+  
+  local_gpu:
+    training:
+      batch_size: 2
+      per_instance_epochs: 2
+    lora:
+      rank: 64  # Full MIT configuration
+    adaptation:
+      permute_n: 3  # Multiple permutations for better results
+      use_chain_augmentation: true

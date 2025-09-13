@@ -38,17 +38,29 @@ class ARCDataRepository:
         self,
         data_path: str | None = None,
         cache_repository: Any | None = None,
-        max_workers: int | None = None
+        max_workers: int | None = None,
+        use_real_dataset: bool = True
     ):
         """Initialize repository with data path and optional cache."""
         if data_path is None:
-            data_path_obj = Path(__file__).parent.parent.parent.parent / "data" / "arc-agi"
+            if use_real_dataset:
+                # Use real ARC Prize 2025 dataset
+                data_path_obj = Path(__file__).parent.parent.parent.parent / "arc-prize-2025"
+            else:
+                # Use legacy data structure
+                data_path_obj = Path(__file__).parent.parent.parent.parent / "data" / "arc-agi"
             data_path = str(data_path_obj)
 
         self.data_path = Path(data_path)
         self.cache_repository = cache_repository
         self.max_workers = max_workers or min(4, multiprocessing.cpu_count())
-        self.task_loader = ARCTaskLoader(str(self.data_path / "training"))
+        self.use_real_dataset = use_real_dataset
+        
+        # Initialize task loader if available
+        if ARCTaskLoader is not None:
+            self.task_loader = ARCTaskLoader(str(self.data_path / "training"))
+        else:
+            self.task_loader = None
 
         # Performance metrics
         self.load_stats = {
@@ -57,6 +69,61 @@ class ARCDataRepository:
             "cache_hits": 0,
             "cache_misses": 0
         }
+        
+        # Load real dataset if using new format
+        self._real_data_cache = {}
+        if self.use_real_dataset:
+            self._load_real_dataset_cache()
+
+    def _load_real_dataset_cache(self):
+        """Load real ARC dataset files into memory for fast access."""
+        try:
+            # Load training challenges and solutions
+            training_challenges_file = self.data_path / "arc-agi_training_challenges.json"
+            training_solutions_file = self.data_path / "arc-agi_training_solutions.json"
+            
+            if training_challenges_file.exists() and training_solutions_file.exists():
+                with open(training_challenges_file) as f:
+                    training_challenges = json.load(f)
+                with open(training_solutions_file) as f:
+                    training_solutions = json.load(f)
+                
+                self._real_data_cache["training"] = {
+                    "challenges": training_challenges,
+                    "solutions": training_solutions
+                }
+            
+            # Load evaluation challenges and solutions
+            eval_challenges_file = self.data_path / "arc-agi_evaluation_challenges.json"
+            eval_solutions_file = self.data_path / "arc-agi_evaluation_solutions.json"
+            
+            if eval_challenges_file.exists() and eval_solutions_file.exists():
+                with open(eval_challenges_file) as f:
+                    eval_challenges = json.load(f)
+                with open(eval_solutions_file) as f:
+                    eval_solutions = json.load(f)
+                
+                self._real_data_cache["evaluation"] = {
+                    "challenges": eval_challenges,
+                    "solutions": eval_solutions
+                }
+            
+            # Load test challenges (no solutions available)
+            test_challenges_file = self.data_path / "arc-agi_test_challenges.json"
+            if test_challenges_file.exists():
+                with open(test_challenges_file) as f:
+                    test_challenges = json.load(f)
+                
+                self._real_data_cache["test"] = {
+                    "challenges": test_challenges,
+                    "solutions": {}
+                }
+                
+            print(f"Loaded real ARC dataset: {len(self._real_data_cache)} data sources")
+            
+        except Exception as e:
+            print(f"Warning: Could not load real dataset cache: {e}")
+            self._real_data_cache = {}
 
     def load_task(self, task_id: str, task_source: str = "training") -> ARCTask | None:
         """Load a single ARC task by ID with optimized performance."""
@@ -72,20 +139,51 @@ class ARCDataRepository:
             self.load_stats["cache_misses"] += 1
 
         try:
-            # Load from disk with optimized approach
-            task_file = f"{task_id}.json"
-            source_path = self.data_path / task_source
-            task_file_path = source_path / task_file
+            if self.use_real_dataset and task_source in self._real_data_cache:
+                # Load from real dataset cache
+                challenges = self._real_data_cache[task_source]["challenges"]
+                solutions = self._real_data_cache[task_source]["solutions"]
+                
+                if task_id not in challenges:
+                    return None
+                
+                challenge_data = challenges[task_id]
+                solution_data = solutions.get(task_id, [])
+                
+                # Extract test output from solutions if available
+                test_output = None
+                if solution_data and len(solution_data) > 0:
+                    test_output = solution_data[0]  # First solution
+                
+                # Extract test input from challenge
+                test_input = []
+                if challenge_data.get("test") and len(challenge_data["test"]) > 0:
+                    test_input = challenge_data["test"][0].get("input", [])
+                
+                # Create ARCTask directly
+                arc_task = ARCTask(
+                    task_id=task_id,
+                    task_source=task_source,
+                    train_examples=challenge_data.get("train", []),
+                    test_input=test_input,
+                    test_output=test_output
+                )
+                
+            else:
+                # Load from legacy file structure
+                task_file = f"{task_id}.json"
+                source_path = self.data_path / task_source
+                task_file_path = source_path / task_file
 
-            if not task_file_path.exists():
-                return None
+                if not task_file_path.exists():
+                    return None
 
-            # Direct JSON loading without ARCTaskLoader validation overhead
-            with open(task_file_path) as f:
-                raw_task = json.load(f)
+                # Direct JSON loading without ARCTaskLoader validation overhead
+                with open(task_file_path) as f:
+                    raw_task = json.load(f)
 
-            # Convert to domain model
-            arc_task = ARCTask.from_dict(raw_task, task_id, task_source)
+                # Convert to domain model
+                arc_task = ARCTask.from_dict(raw_task, task_id, task_source)
 
             # Cache the result
             if self.cache_repository:
@@ -111,21 +209,39 @@ class ARCDataRepository:
         """Load all tasks from specified source with optimized performance."""
         start_time = time.perf_counter()
 
-        source_path = self.data_path / task_source
-        if not source_path.exists():
-            raise FileNotFoundError(f"Data source path not found: {source_path}")
+        if self.use_real_dataset and task_source in self._real_data_cache:
+            # Load from real dataset cache
+            challenges = self._real_data_cache[task_source]["challenges"]
+            solutions = self._real_data_cache[task_source]["solutions"]
+            
+            task_ids = list(challenges.keys())
+            if limit:
+                task_ids = task_ids[:limit]
+                
+            print(f"Loading {len(task_ids)} tasks from real {task_source} dataset...")
+            
+            tasks = {}
+            for task_id in task_ids:
+                task = self.load_task(task_id, task_source)
+                if task:
+                    tasks[task_id] = task
+        else:
+            # Load from legacy file structure
+            source_path = self.data_path / task_source
+            if not source_path.exists():
+                raise FileNotFoundError(f"Data source path not found: {source_path}")
 
-        # Get all task files
-        task_files = list(source_path.glob("*.json"))
-        if limit:
-            task_files = task_files[:limit]
+            # Get all task files
+            task_files = list(source_path.glob("*.json"))
+            if limit:
+                task_files = task_files[:limit]
 
-        print(f"Loading {len(task_files)} tasks from {task_source}...")
+            print(f"Loading {len(task_files)} tasks from {task_source}...")
 
-        # Use sequential loading for optimal performance
-        # ProcessPoolExecutor has significant overhead on Windows for lightweight JSON parsing tasks
-        # Sequential loading with optimized JSON parsing is faster for this use case
-        tasks = self._load_tasks_sequential(task_files, task_source)
+            # Use sequential loading for optimal performance
+            # ProcessPoolExecutor has significant overhead on Windows for lightweight JSON parsing tasks
+            # Sequential loading with optimized JSON parsing is faster for this use case
+            tasks = self._load_tasks_sequential(task_files, task_source)
 
         load_time = time.perf_counter() - start_time
         self.load_stats["total_loaded"] += len(tasks)
@@ -218,11 +334,17 @@ class ARCDataRepository:
 
     def get_task_ids(self, task_source: str = "training") -> list[str]:
         """Get list of all available task IDs for a source."""
-        source_path = self.data_path / task_source
-        if not source_path.exists():
-            return []
+        if self.use_real_dataset and task_source in self._real_data_cache:
+            # Get task IDs from real dataset cache
+            challenges = self._real_data_cache[task_source]["challenges"]
+            return list(challenges.keys())
+        else:
+            # Get task IDs from legacy file structure
+            source_path = self.data_path / task_source
+            if not source_path.exists():
+                return []
 
-        return [f.stem for f in source_path.glob("*.json")]
+            return [f.stem for f in source_path.glob("*.json")]
 
     def get_load_statistics(self) -> dict[str, Any]:
         """Get repository performance statistics."""

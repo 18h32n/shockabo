@@ -1,0 +1,156 @@
+{
+  "timestamp": "2025-09-13T09:07:07.263938",
+  "system_info": {
+    "cuda_available": false,
+    "gpu_count": 0,
+    "gpu_info": [],
+    "total_ram_gb": 31,
+    "available_ram_gb": 6
+  },
+  "summary": {
+    "total_tests": 6,
+    "passed_tests": 6,
+    "failed_tests": 0,
+    "success_rate": 1.0,
+    "total_duration_seconds": 12.315155029296875,
+    "max_gpu_memory_mb": 0.0
+  },
+  "test_results": [
+    {
+      "test_name": "Basic CUDA Operations",
+      "gpu_config": "cpu",
+      "memory_config": "31GB_RAM",
+      "success": true,
+      "duration_seconds": 0.021230220794677734,
+      "memory_usage_mb": 18.80078125,
+      "gpu_memory_mb": 0.0,
+      "peak_gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "status": "skipped",
+        "reason": "CUDA not available"
+      }
+    },
+    {
+      "test_name": "Mixed Precision Support",
+      "gpu_config": "cpu",
+      "memory_config": "31GB_RAM",
+      "success": true,
+      "duration_seconds": 0.04509592056274414,
+      "memory_usage_mb": 115.203125,
+      "gpu_memory_mb": 0.0,
+      "peak_gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "status": "skipped",
+        "reason": "CUDA not available"
+      }
+    },
+    {
+      "test_name": "Memory Management Strategies",
+      "gpu_config": "cpu",
+      "memory_config": "31GB_RAM",
+      "success": true,
+      "duration_seconds": 0.21294403076171875,
+      "memory_usage_mb": 29.19140625,
+      "gpu_memory_mb": 0.0,
+      "peak_gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "gradient_checkpointing": "cpu_mode",
+        "memory_clearing": "supported"
+      }
+    },
+    {
+      "test_name": "Batch Size Scaling",
+      "gpu_config": "cpu",
+      "memory_config": "31GB_RAM",
+      "success": true,
+      "duration_seconds": 0.030634641647338867,
+      "memory_usage_mb": 39.87890625,
+      "gpu_memory_mb": 0.0,
+      "peak_gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "batch_scaling": "cpu_mode"
+      }
+    },
+    {
+      "test_name": "TTT Memory Requirements",
+      "gpu_config": "cpu",
+      "memory_config": "31GB_RAM",
+      "success": true,
+      "duration_seconds": 11.981394052505493,
+      "memory_usage_mb": 226.58203125,
+      "gpu_memory_mb": 0.0,
+      "peak_gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "ultra_low_memory": {
+          "status": "initialized",
+          "config": {
+            "batch_size": 1,
+            "lora_rank": 8,
+            "quantization": true,
+            "name": "ultra_low_memory"
+          },
+          "device": "cpu"
+        },
+        "low_memory": {
+          "status": "initialized",
+          "config": {
+            "batch_size": 1,
+            "lora_rank": 16,
+            "quantization": true,
+            "name": "low_memory"
+          },
+          "device": "cpu"
+        },
+        "medium_memory": {
+          "status": "initialized",
+          "config": {
+            "batch_size": 2,
+            "lora_rank": 32,
+            "quantization": true,
+            "name": "medium_memory"
+          },
+          "device": "cpu"
+        },
+        "high_memory": {
+          "status": "initialized",
+          "config": {
+            "batch_size": 4,
+            "lora_rank": 64,
+            "quantization": false,
+            "name": "high_memory"
+          },
+          "device": "cpu"
+        }
+      }
+    },
+    {
+      "test_name": "Multi-GPU Support",
+      "gpu_config": "cpu",
+      "memory_config": "31GB_RAM",
+      "success": true,
+      "duration_seconds": 0.023856163024902344,
+      "memory_usage_mb": 4.5390625,
+      "gpu_memory_mb": 0.0,
+      "peak_gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "multi_gpu": "cuda_not_available"
+      }
+    }
+  ],
+  "recommendations": [
+    "No CUDA support detected - consider using GPU-enabled environment",
+    "CPU-only mode will be significantly slower for TTT training"
+  ]
+}

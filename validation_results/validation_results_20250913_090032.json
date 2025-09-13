@@ -1,0 +1,78 @@
+{
+  "validation_start": "2025-09-13T08:59:51.305604",
+  "model": "microsoft/DialoGPT-medium",
+  "device": "cpu",
+  "accuracy_target": 0.25,
+  "time_limit_hours": 2,
+  "memory_limit_gb": 10,
+  "tasks_validated": 5,
+  "tasks_correct": 0,
+  "accuracy": 0.0,
+  "total_time_seconds": 41.02846121788025,
+  "max_memory_gb": 1.4420547485351562,
+  "individual_results": [
+    {
+      "task_id": "0934a4d8",
+      "correct": false,
+      "time_seconds": 40.75729537010193,
+      "max_memory_gb": 1.441375732421875,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 40.756982,
+        "memory_mb": 1475.96875,
+        "gpu_memory_mb": 0.0
+      }
+    },
+    {
+      "task_id": "135a2760",
+      "correct": false,
+      "time_seconds": 0.016578197479248047,
+      "max_memory_gb": 1.4413948059082031,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 0.016397,
+        "memory_mb": 1475.98828125,
+        "gpu_memory_mb": 0.0
+      }
+    },
+    {
+      "task_id": "136b0064",
+      "correct": false,
+      "time_seconds": 0.027170658111572266,
+      "max_memory_gb": 1.4415626525878906,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 0.027,
+        "memory_mb": 1476.16015625,
+        "gpu_memory_mb": 0.0
+      }
+    },
+    {
+      "task_id": "13e47133",
+      "correct": false,
+      "time_seconds": 0.05796098709106445,
+      "max_memory_gb": 1.4416275024414062,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 0.057774,
+        "memory_mb": 1476.2265625,
+        "gpu_memory_mb": 0.0
+      }
+    },
+    {
+      "task_id": "142ca369",
+      "correct": false,
+      "time_seconds": 0.09596085548400879,
+      "max_memory_gb": 1.4420547485351562,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 0.095747,
+        "memory_mb": 1476.6640625,
+        "gpu_memory_mb": 0.0
+      }
+    }
+  ],
+  "validation_passed": false,
+  "total_time_hours": 0.011396794782744513,
+  "validation_end": "2025-09-13T09:00:32.335852"
+}

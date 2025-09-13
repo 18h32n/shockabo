@@ -1,0 +1,14 @@
+TTT BASELINE VALIDATION REPORT
+==================================================
+
+Model: gpt2
+Device: cpu
+Validation Date: 2025-09-13T09:05:44.206860
+
+RESULTS:
+- Accuracy: 0.00% (target: 25%)
+- Time: 0.01 hours (limit: 2 hours)
+- Memory: 0.68 GB (limit: 10 GB)
+- Tasks: 0/5 correct
+
+VALIDATION FAILED

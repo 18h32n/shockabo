@@ -1,0 +1,54 @@
+{
+  "validation_start": "2025-09-13T08:49:12.568983",
+  "model": "meta-llama/Llama-3.2-1B",
+  "device": "cpu",
+  "accuracy_target": 0.25,
+  "time_limit_hours": 2,
+  "memory_limit_gb": 10,
+  "tasks_validated": 3,
+  "tasks_correct": 0,
+  "accuracy": 0.0,
+  "total_time_seconds": 1.0556015968322754,
+  "max_memory_gb": 0.41001129150390625,
+  "individual_results": [
+    {
+      "task_id": "0934a4d8",
+      "correct": false,
+      "time_seconds": 0.41095757484436035,
+      "max_memory_gb": 0.4099006652832031,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 0.410666,
+        "memory_mb": 419.73828125,
+        "gpu_memory_mb": 0.0
+      }
+    },
+    {
+      "task_id": "135a2760",
+      "correct": false,
+      "time_seconds": 0.30434322357177734,
+      "max_memory_gb": 0.4100074768066406,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 0.304168,
+        "memory_mb": 419.84765625,
+        "gpu_memory_mb": 0.0
+      }
+    },
+    {
+      "task_id": "136b0064",
+      "correct": false,
+      "time_seconds": 0.3220689296722412,
+      "max_memory_gb": 0.41001129150390625,
+      "adaptation_metrics": {},
+      "resource_usage": {
+        "cpu_seconds": 0.32191,
+        "memory_mb": 419.8515625,
+        "gpu_memory_mb": 0.0
+      }
+    }
+  ],
+  "validation_passed": false,
+  "total_time_hours": 0.00029322266578674317,
+  "validation_end": "2025-09-13T08:49:13.628089"
+}

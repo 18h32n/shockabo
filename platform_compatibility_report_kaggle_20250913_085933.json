@@ -1,0 +1,200 @@
+{
+  "platform": "kaggle",
+  "timestamp": "2025-09-13T08:59:33.292114",
+  "system_info": {
+    "platform": "kaggle",
+    "python_version": "3.13.5 (tags/v3.13.5:6cb20a2, Jun 11 2025, 16:15:46) [MSC v.1943 64 bit (AMD64)]",
+    "torch_version": "2.8.0+cpu",
+    "cuda_available": false,
+    "cuda_version": null,
+    "gpu_count": 0,
+    "gpu_names": [],
+    "total_memory_gb": 31.927120208740234,
+    "available_memory_gb": 10.340320587158203,
+    "cpu_count": 12,
+    "os_info": "nt Windows"
+  },
+  "platform_config": {
+    "platform": {
+      "name": "kaggle",
+      "gpu_hours_limit": 30,
+      "memory_limit_gb": 32,
+      "has_persistent_storage": true
+    },
+    "paths": {
+      "data_dir": "/kaggle/input",
+      "working_dir": "/kaggle/working",
+      "cache_dir": "/kaggle/working/cache",
+      "logs_dir": "/kaggle/working/logs",
+      "models_dir": "/kaggle/working/models"
+    },
+    "database": {
+      "url": "sqlite:////kaggle/working/arc_prize.db"
+    },
+    "cache": {
+      "directory": "/kaggle/working/cache",
+      "size_limit": "2GB"
+    },
+    "logging": {
+      "level": "INFO",
+      "file": "/kaggle/working/logs/arc_prize.log"
+    },
+    "model": {
+      "device": "cuda",
+      "batch_size": 32,
+      "use_fp16": true
+    },
+    "training": {
+      "batch_size": 16,
+      "gradient_accumulation_steps": 1,
+      "use_gpu": true
+    },
+    "inference": {
+      "batch_size": 32,
+      "use_gpu": true
+    },
+    "resources": {
+      "max_memory_gb": 28,
+      "max_concurrent_tasks": 4,
+      "gpu_memory_fraction": 0.9
+    },
+    "features": {
+      "hot_reload": false,
+      "experiment_tracking": true,
+      "ttt_training": true,
+      "program_synthesis": true
+    },
+    "kaggle": {
+      "dataset_mount_points": [
+        "/kaggle/input/arc-prize-2025",
+        "/kaggle/input/arc-dataset"
+      ],
+      "kernel_type": "notebook",
+      "internet_enabled": true
+    }
+  },
+  "summary": {
+    "total_tests": 7,
+    "passed_tests": 4,
+    "failed_tests": 3,
+    "success_rate": 0.5714285714285714,
+    "total_duration_seconds": 20.787910223007202,
+    "total_memory_usage_mb": 1081.87890625,
+    "total_gpu_memory_mb": 0.0
+  },
+  "test_results": [
+    {
+      "test_name": "Configuration Loading",
+      "platform": "kaggle",
+      "success": false,
+      "duration_seconds": 0.035030364990234375,
+      "memory_usage_mb": -55.08984375,
+      "gpu_memory_mb": 0.0,
+      "error_message": "cannot import name 'ConfigurationManager' from 'src.infrastructure.config' (C:\\Users\\Michael\\CODING PROJECT\\KAGGLE COMPETITIONS\\arc-prize-2025-story-1.4\\src\\infrastructure\\config.py)",
+      "warnings": [],
+      "metadata": {}
+    },
+    {
+      "test_name": "TTT Adapter Initialization",
+      "platform": "kaggle",
+      "success": true,
+      "duration_seconds": 20.514825582504272,
+      "memory_usage_mb": 689.7890625,
+      "gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "adapter_initialized": true,
+        "device": "cpu",
+        "model_name": "meta-llama/Llama-3.2-1B",
+        "lora_rank": 32,
+        "batch_size": 1,
+        "memory_limit_mb": 10240,
+        "quantization": true,
+        "mixed_precision": true
+      }
+    },
+    {
+      "test_name": "Memory Constraints",
+      "platform": "kaggle",
+      "success": true,
+      "duration_seconds": 0.06477069854736328,
+      "memory_usage_mb": 182.9140625,
+      "gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "platform_memory_limit_gb": 28,
+        "gpu_memory_fraction": 0.9,
+        "current_memory_usage_gb": 22.242847442626953,
+        "available_memory_gb": 9.58572006225586
+      }
+    },
+    {
+      "test_name": "Data Loading",
+      "platform": "kaggle",
+      "success": false,
+      "duration_seconds": 0.032828569412231445,
+      "memory_usage_mb": 85.8671875,
+      "gpu_memory_mb": 0.0,
+      "error_message": "ARCDataRepository.__init__() got an unexpected keyword argument 'data_dir'",
+      "warnings": [],
+      "metadata": {}
+    },
+    {
+      "test_name": "Model Loading and Inference",
+      "platform": "kaggle",
+      "success": false,
+      "duration_seconds": 0.030882835388183594,
+      "memory_usage_mb": 39.859375,
+      "gpu_memory_mb": 0.0,
+      "error_message": "ARCTask.__init__() missing 1 required positional argument: 'task_source'",
+      "warnings": [],
+      "metadata": {}
+    },
+    {
+      "test_name": "Checkpoint Management",
+      "platform": "kaggle",
+      "success": true,
+      "duration_seconds": 0.09403824806213379,
+      "memory_usage_mb": 253.06640625,
+      "gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "models_dir": "\\kaggle\\working\\models",
+        "checkpoint_dir": "\\kaggle\\working\\models\\test_checkpoints",
+        "working_dir": "\\kaggle\\working",
+        "checkpoint_save": "success",
+        "checkpoint_load": "success",
+        "data_integrity": true,
+        "disk_space": {
+          "total_gb": 929.6328086853027,
+          "used_gb": 559.7813491821289,
+          "free_gb": 369.8514595031738
+        }
+      }
+    },
+    {
+      "test_name": "GPU Configurations",
+      "platform": "kaggle",
+      "success": true,
+      "duration_seconds": 0.015533924102783203,
+      "memory_usage_mb": -114.52734375,
+      "gpu_memory_mb": 0.0,
+      "error_message": null,
+      "warnings": [],
+      "metadata": {
+        "cuda_available": false,
+        "gpu_count": 0,
+        "cpu_fallback": "required"
+      }
+    }
+  ],
+  "recommendations": [
+    "Failed tests detected - see individual test results for details",
+    "For Kaggle: Monitor GPU hour usage to avoid exhaustion",
+    "For Kaggle: Use persistent storage for checkpoints",
+    "No GPU detected - performance will be significantly reduced"
+  ]
+}

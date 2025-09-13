@@ -1,0 +1,44 @@
+REAL ARC DATASET VALIDATION REPORT
+==================================================
+
+Validation Date: 2025-09-13T08:12:32.998221
+Dataset Type: real_arc_prize_2025
+Overall Result: PASSED
+
+DATASET OVERVIEW:
+--------------------
+Training: 1000 tasks, 100% with solutions
+  - Avg training examples: 3.5
+  - Load time: 0.000s
+  - Est. memory: 0.06MB
+
+Evaluation: 120 tasks, 100% with solutions
+  - Avg training examples: 2.9
+  - Load time: 0.000s
+  - Est. memory: 0.12MB
+
+Test: 240 tasks, 0% with solutions
+  - Avg training examples: 3.5
+  - Load time: 0.000s
+  - Est. memory: 0.05MB
+
+PERFORMANCE METRICS:
+--------------------
+Batch loading: 120 tasks in 0.00s
+Loading rate: 260111.9 tasks/second
+Avg time per task: 0.0000s
+
+DATA INTEGRITY:
+--------------------
+Tasks checked: 50
+Valid tasks: 50
+Integrity score: 100.0%
+Rating: excellent
+
+COMPLEXITY ANALYSIS:
+--------------------
+Grid complexity: 25-900 cells (avg: 352.6)
+Memory per task: 12336 bytes (max: 37000)
+
+RECOMMENDATIONS:
+  - Memory usage optimization may be beneficial
