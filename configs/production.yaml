@@ -64,8 +64,37 @@ monitoring:
 
 security:
   rate_limit:
-    requests_per_minute: 100
-    burst_size: 200
+    # Global rate limiting settings - more restrictive in production
+    enabled: true
+    use_redis: true  # Use Redis for production clustering
+    redis_url: "${REDIS_URL:-redis://localhost:6379/0}"
+    
+    # Evaluation endpoints (stricter for production DoS protection)
+    evaluation:
+      requests_per_minute: 50   # More restrictive than development
+      requests_per_hour: 500
+      burst_size: 5
+    
+    # Dashboard endpoints (balanced for production UI)
+    dashboard:
+      requests_per_minute: 500   # Lower than development
+      requests_per_hour: 5000
+      burst_size: 25
+    
+    # Authentication endpoints (very restrictive)
+    auth:
+      requests_per_minute: 10
+      requests_per_hour: 100
+    
+    # WebSocket connections per IP (more restrictive)
+    websocket:
+      connections_per_ip: 3
+    
+    # Advanced protection (enabled in production)
+    adaptive_limiting: true
+    suspicious_threshold_multiplier: 3.0  # More aggressive
+    whitelist_ips: []  # Configure via environment
+    blacklist_ips: []  # Configure via environment
 
 resources:
   max_memory_gb: 16
