@@ -72,11 +72,56 @@ monitoring:
   metrics_enabled: true
   metrics_port: 9090
   profiling_enabled: false
+
+# Health check configuration (development settings)
+health_check:
+  enabled: true
+  check_interval_seconds: 30
+  timeout_seconds: 5
+  max_failures: 3
+  degraded_threshold_ms: 1000.0
+  unhealthy_threshold_ms: 5000.0
+  components_to_check:
+    - database
+    - cache
+    - wandb
+    - storage
+    - memory
+    - cpu
   
 security:
   rate_limit:
-    requests_per_minute: 1000
-    burst_size: 2000
+    # Global rate limiting settings
+    enabled: true
+    use_redis: false
+    redis_url: "redis://localhost:6379/0"
+    
+    # Evaluation endpoints (more restrictive for DoS protection)
+    evaluation:
+      requests_per_minute: 100
+      requests_per_hour: 1000
+      burst_size: 10
+    
+    # Dashboard endpoints (more permissive for UI)
+    dashboard:
+      requests_per_minute: 1000
+      requests_per_hour: 10000
+      burst_size: 50
+    
+    # Authentication endpoints
+    auth:
+      requests_per_minute: 20
+      requests_per_hour: 200
+    
+    # WebSocket connections per IP
+    websocket:
+      connections_per_ip: 5
+    
+    # Advanced protection
+    adaptive_limiting: true
+    suspicious_threshold_multiplier: 2.0
+    whitelist_ips: []
+    blacklist_ips: []
     
 resources:
   max_memory_gb: 8

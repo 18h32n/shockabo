@@ -75,15 +75,15 @@ RUN mkdir -p /app/data/{tasks,models,cache} && \
 # Switch to non-root user
 USER appuser
 
-# Health check
+# Health check using our dedicated health endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/health/live || exit 1
 
 # Expose ports
 EXPOSE 8000 8001 9090
 
-# Set default command
-CMD ["python", "-m", "uvicorn", "src.adapters.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set default command to use our main application
+CMD ["python", "-m", "src.main"]
 
 # Labels for metadata
 LABEL maintainer="ARC Team <team@example.com>"
