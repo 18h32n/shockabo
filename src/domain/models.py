@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -108,8 +108,8 @@ class ResourceUsage:
     strategy_type: StrategyType
     cpu_seconds: float
     memory_mb: float
-    gpu_memory_mb: Optional[float]
-    api_calls: Dict[str, int]
+    gpu_memory_mb: float | None
+    api_calls: dict[str, int]
     total_tokens: int
     estimated_cost: float
     timestamp: datetime
@@ -119,11 +119,11 @@ class ResourceUsage:
 class ARCTaskSolution:
     """Solution for an ARC task."""
     task_id: str
-    predictions: List[List[List[int]]]
+    predictions: list[list[list[int]]]
     strategy_used: StrategyType
     confidence_score: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    resource_usage: Optional[ResourceUsage] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    resource_usage: ResourceUsage | None = None
 
 
 @dataclass
@@ -133,6 +133,6 @@ class TTTAdaptation:
     task_id: str
     base_model_checkpoint: str
     adapted_weights_path: str
-    training_examples: List[Dict[str, Any]]
-    adaptation_metrics: Dict[str, float]
+    training_examples: list[dict[str, Any]]
+    adaptation_metrics: dict[str, float]
     created_at: datetime
