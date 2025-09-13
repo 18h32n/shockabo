@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -89,3 +90,49 @@ class ARCTask:
 
         # Assume 4 bytes per integer + overhead
         return total_cells * 4 + 1000  # 1KB overhead per task
+
+
+class StrategyType(Enum):
+    """Types of solving strategies available."""
+    TEST_TIME_TRAINING = "ttt"
+    PROGRAM_SYNTHESIS = "program_synthesis"
+    EVOLUTION = "evolution"
+    IMITATION_LEARNING = "imitation"
+    HYBRID = "hybrid"
+
+
+@dataclass
+class ResourceUsage:
+    """Track resource usage for a task execution."""
+    task_id: str
+    strategy_type: StrategyType
+    cpu_seconds: float
+    memory_mb: float
+    gpu_memory_mb: Optional[float]
+    api_calls: Dict[str, int]
+    total_tokens: int
+    estimated_cost: float
+    timestamp: datetime
+
+
+@dataclass
+class ARCTaskSolution:
+    """Solution for an ARC task."""
+    task_id: str
+    predictions: List[List[List[int]]]
+    strategy_used: StrategyType
+    confidence_score: float
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    resource_usage: Optional[ResourceUsage] = None
+
+
+@dataclass
+class TTTAdaptation:
+    """Store Test-Time Training adaptations."""
+    adaptation_id: str
+    task_id: str
+    base_model_checkpoint: str
+    adapted_weights_path: str
+    training_examples: List[Dict[str, Any]]
+    adaptation_metrics: Dict[str, float]
+    created_at: datetime

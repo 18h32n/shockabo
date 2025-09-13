@@ -1,0 +1,14 @@
+TTT BASELINE VALIDATION REPORT
+==================================================
+
+Model: distilbert-base-uncased
+Device: cpu
+Validation Date: 2025-09-13T09:04:32.446125
+
+RESULTS:
+- Accuracy: 0.00% (target: 25%)
+- Time: 0.00 hours (limit: 2 hours)
+- Memory: 0.43 GB (limit: 10 GB)
+- Tasks: 0/5 correct
+
+VALIDATION FAILED

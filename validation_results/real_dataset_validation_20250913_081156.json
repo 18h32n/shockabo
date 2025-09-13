@@ -1,0 +1,143 @@
+{
+  "validation_start": "2025-09-13T08:11:56.229506",
+  "dataset_type": "real_arc_prize_2025",
+  "validation_passed": true,
+  "datasets": {
+    "training": {
+      "total_tasks": 1000,
+      "sample_size": 10,
+      "tasks_with_solutions": 10,
+      "solution_rate": 1.0,
+      "avg_train_examples": 3.5,
+      "grid_size_range": {
+        "min": [
+          2,
+          2
+        ],
+        "max": [
+          21,
+          21
+        ],
+        "avg": [
+          9.777777777777779,
+          9.777777777777779
+        ]
+      },
+      "estimated_memory_mb": 0.056671142578125,
+      "load_time_seconds": 7.486343383789062e-05
+    },
+    "evaluation": {
+      "total_tasks": 120,
+      "sample_size": 10,
+      "tasks_with_solutions": 10,
+      "solution_rate": 1.0,
+      "avg_train_examples": 2.9,
+      "grid_size_range": {
+        "min": [
+          5,
+          13
+        ],
+        "max": [
+          30,
+          30
+        ],
+        "avg": [
+          19.076923076923077,
+          20.974358974358974
+        ]
+      },
+      "estimated_memory_mb": 0.12481689453125,
+      "load_time_seconds": 1.6927719116210938e-05
+    },
+    "test": {
+      "total_tasks": 240,
+      "sample_size": 10,
+      "tasks_with_solutions": 0,
+      "solution_rate": 0.0,
+      "avg_train_examples": 3.5,
+      "grid_size_range": {
+        "min": [
+          2,
+          2
+        ],
+        "max": [
+          21,
+          21
+        ],
+        "avg": [
+          9.777777777777779,
+          9.777777777777779
+        ]
+      },
+      "estimated_memory_mb": 0.04984283447265625,
+      "load_time_seconds": 1.0013580322265625e-05
+    }
+  },
+  "performance_metrics": {
+    "individual_loading": {
+      "sample_size": 10,
+      "avg_time_seconds": 3.743171691894531e-06,
+      "min_time_seconds": 2.6226043701171875e-06,
+      "max_time_seconds": 7.3909759521484375e-06
+    },
+    "batch_loading": {
+      "tasks_loaded": 50,
+      "total_time_seconds": 0.00021123886108398438,
+      "avg_time_per_task": 4.224777221679687e-06,
+      "tasks_per_second": 236698.87133182844
+    },
+    "memory_analysis": {
+      "total_estimated_mb": 0.3395881652832031,
+      "avg_per_task_kb": 6.954765625,
+      "memory_efficiency": "high"
+    }
+  },
+  "memory_analysis": {
+    "sample_size": 50,
+    "grid_complexity": {
+      "count": 161,
+      "min": 4,
+      "max": 900,
+      "avg": 184.36024844720498,
+      "median": 121
+    },
+    "training_complexity": {
+      "count": 50,
+      "min": 2,
+      "max": 5,
+      "avg": 3.22,
+      "median": 3
+    },
+    "color_complexity": {
+      "count": 50,
+      "min": 2,
+      "max": 10,
+      "avg": 5.5,
+      "median": 6
+    },
+    "memory_requirements": {
+      "count": 50,
+      "min": 1360,
+      "max": 29800,
+      "avg": 7121.68,
+      "median": 4488
+    },
+    "complexity_rating": "mixed",
+    "recommendations": []
+  },
+  "data_integrity": {
+    "total_checked": 50,
+    "valid_tasks": 50,
+    "invalid_tasks": [],
+    "format_issues": [],
+    "grid_issues": [],
+    "structure_analysis": {
+      "consistent_format": true,
+      "issues_found": []
+    },
+    "integrity_score": 1.0,
+    "integrity_rating": "excellent"
+  },
+  "sample_analysis": [],
+  "validation_end": "2025-09-13T08:11:56.233062"
+}
