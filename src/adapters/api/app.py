@@ -15,7 +15,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.adapters.api.middleware.rate_limiter import RateLimitMiddleware, RateLimitConfig
+from src.adapters.api.middleware.auth import setup_authentication_middleware
 from src.adapters.api.routes.evaluation import router as evaluation_router
+from src.adapters.api.routes.auth import router as auth_router
 from src.infrastructure.config import get_config
 
 # Configure structured logging
@@ -143,6 +145,9 @@ def get_rate_limit_config() -> RateLimitConfig:
     )
 
 
+# Add authentication middleware
+setup_authentication_middleware(app)
+
 # Add rate limiting middleware
 rate_limit_config = get_rate_limit_config()
 if rate_limit_config.enable_rate_limiting:
@@ -203,6 +208,7 @@ async def health_check() -> dict[str, str]:
 
 
 # Include routers
+app.include_router(auth_router)
 app.include_router(evaluation_router)
 
 

@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -136,3 +136,89 @@ class TTTAdaptation:
     training_examples: list[dict[str, Any]]
     adaptation_metrics: dict[str, float]
     created_at: datetime
+
+
+class UserRole(Enum):
+    """User roles for authorization."""
+    USER = "user"
+    ADMIN = "admin"
+    SERVICE = "service"
+
+
+class AccountStatus(Enum):
+    """Account status values."""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    SUSPENDED = "suspended"
+    LOCKED = "locked"
+
+
+@dataclass
+class User:
+    """User account model."""
+    id: str
+    username: str
+    email: str
+    password_hash: str
+    role: UserRole
+    status: AccountStatus
+    created_at: datetime
+    updated_at: datetime
+    last_login_at: Optional[datetime] = None
+    failed_login_attempts: int = 0
+    locked_until: Optional[datetime] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    
+    def is_active(self) -> bool:
+        """Check if user account is active."""
+        if self.status != AccountStatus.ACTIVE:
+            return False
+        
+        if self.locked_until and self.locked_until > datetime.now():
+            return False
+        
+        return True
+    
+    def is_locked(self) -> bool:
+        """Check if user account is locked."""
+        return (self.status == AccountStatus.LOCKED or 
+                (self.locked_until and self.locked_until > datetime.now()))
+
+
+@dataclass  
+class ServiceAccount:
+    """Service account for automated system access."""
+    id: str
+    name: str
+    description: str
+    api_key_hash: str
+    permissions: list[str]
+    status: AccountStatus
+    created_at: datetime
+    updated_at: datetime
+    last_used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    
+    def is_active(self) -> bool:
+        """Check if service account is active."""
+        if self.status != AccountStatus.ACTIVE:
+            return False
+        
+        if self.expires_at and self.expires_at < datetime.now():
+            return False
+        
+        return True
+
+
+@dataclass
+class AuthenticationAttempt:
+    """Track authentication attempts for security monitoring."""
+    id: str
+    username_or_email: str
+    ip_address: str
+    user_agent: str
+    success: bool
+    failure_reason: Optional[str]
+    timestamp: datetime
+    metadata: dict[str, Any] = field(default_factory=dict)
