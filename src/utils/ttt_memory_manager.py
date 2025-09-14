@@ -12,7 +12,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-import psutil
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
@@ -38,7 +37,7 @@ class MemoryMonitor:
     def __init__(self, memory_limit_mb: float = 10240):
         """
         Initialize memory monitor.
-
+        
         Args:
             memory_limit_mb: Memory limit in MB (default 10GB)
         """
@@ -86,7 +85,7 @@ class MemoryMonitor:
             available_memory_mb=available_memory,
             memory_limit_mb=self.memory_limit_mb,
             memory_utilization=current_memory / self.memory_limit_mb,
-            timestamp=time.time(),
+            timestamp=time.time()
         )
 
         self.memory_history.append(stats)
@@ -95,10 +94,10 @@ class MemoryMonitor:
     def check_memory_threshold(self, threshold: float = 0.85) -> bool:
         """
         Check if memory usage exceeds threshold.
-
+        
         Args:
             threshold: Memory threshold (0.0 to 1.0)
-
+            
         Returns:
             True if memory usage exceeds threshold
         """
@@ -119,7 +118,7 @@ class MemoryMonitor:
     def memory_context(self, operation_name: str = "operation") -> Generator[None, None, None]:
         """
         Context manager for memory-aware operations.
-
+        
         Args:
             operation_name: Name of the operation for logging
         """
@@ -151,11 +150,11 @@ class TTTDataset(Dataset):
         prompts: list[str],
         tokenizer,
         max_length: int = 2048,
-        cache_tokenized: bool = False,
+        cache_tokenized: bool = False
     ):
         """
         Initialize TTT dataset.
-
+        
         Args:
             prompts: List of training prompts
             tokenizer: Tokenizer instance
@@ -183,7 +182,7 @@ class TTTDataset(Dataset):
             padding=True,
             truncation=True,
             max_length=self.max_length,
-            return_tensors="pt",
+            return_tensors="pt"
         )
 
         # Squeeze batch dimension
@@ -209,11 +208,11 @@ class MemoryEfficientTTTTrainer:
         adapter,  # LoRAAdapter
         memory_limit_mb: float = 10240,
         gradient_checkpointing: bool = True,
-        mixed_precision: bool = True,
+        mixed_precision: bool = True
     ):
         """
         Initialize memory-efficient TTT trainer.
-
+        
         Args:
             model: Base model
             adapter: LoRA adapter
@@ -240,16 +239,16 @@ class MemoryEfficientTTTTrainer:
         self,
         batch: dict[str, torch.Tensor],
         optimizer: torch.optim.Optimizer,
-        accumulation_steps: int = 1,
+        accumulation_steps: int = 1
     ) -> dict[str, float]:
         """
         Perform a single training step with memory optimization.
-
+        
         Args:
             batch: Training batch
             optimizer: Optimizer instance
             accumulation_steps: Gradient accumulation steps
-
+            
         Returns:
             Dictionary with training metrics
         """
@@ -272,7 +271,7 @@ class MemoryEfficientTTTTrainer:
                     self.scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(
                         self.adapter.get_trainable_parameters(),
-                        max_norm=1.0,
+                        max_norm=1.0
                     )
                     self.scaler.step(optimizer)
                     self.scaler.update()
@@ -287,7 +286,7 @@ class MemoryEfficientTTTTrainer:
                 if accumulation_steps == 1:
                     torch.nn.utils.clip_grad_norm_(
                         self.adapter.get_trainable_parameters(),
-                        max_norm=1.0,
+                        max_norm=1.0
                     )
                     optimizer.step()
                     optimizer.zero_grad()
@@ -299,7 +298,7 @@ class MemoryEfficientTTTTrainer:
 
             return {
                 "loss": loss.item() * accumulation_steps,
-                "memory_mb": self.memory_monitor.get_current_memory(),
+                "memory_mb": self.memory_monitor.get_current_memory()
             }
 
     def train_epoch(
@@ -308,18 +307,18 @@ class MemoryEfficientTTTTrainer:
         optimizer: torch.optim.Optimizer,
         batch_size: int = 1,
         accumulation_steps: int = 1,
-        max_steps: int | None = None,
+        max_steps: int | None = None
     ) -> dict[str, float]:
         """
         Train for one epoch with memory optimization.
-
+        
         Args:
             dataset: Training dataset
             optimizer: Optimizer instance
             batch_size: Batch size (keep small for memory efficiency)
             accumulation_steps: Gradient accumulation steps
             max_steps: Maximum number of steps
-
+            
         Returns:
             Dictionary with epoch metrics
         """
@@ -331,7 +330,7 @@ class MemoryEfficientTTTTrainer:
             batch_size=batch_size,
             shuffle=False,  # Deterministic for TTT
             pin_memory=torch.cuda.is_available(),
-            num_workers=0,  # Single process to avoid memory overhead
+            num_workers=0  # Single process to avoid memory overhead
         )
 
         total_loss = 0.0
@@ -358,14 +357,14 @@ class MemoryEfficientTTTTrainer:
                         self.scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(
                             self.adapter.get_trainable_parameters(),
-                            max_norm=1.0,
+                            max_norm=1.0
                         )
                         self.scaler.step(optimizer)
                         self.scaler.update()
                     else:
                         torch.nn.utils.clip_grad_norm_(
                             self.adapter.get_trainable_parameters(),
-                            max_norm=1.0,
+                            max_norm=1.0
                         )
                         optimizer.step()
 
@@ -383,7 +382,7 @@ class MemoryEfficientTTTTrainer:
             "total_loss": total_loss,
             "num_steps": num_steps,
             "max_memory_mb": max_memory,
-            "memory_utilization": max_memory / self.memory_monitor.memory_limit_mb,
+            "memory_utilization": max_memory / self.memory_monitor.memory_limit_mb
         }
 
     def train_per_instance(
@@ -394,11 +393,11 @@ class MemoryEfficientTTTTrainer:
         num_epochs: int = 1,
         batch_size: int = 1,
         max_length: int = 2048,
-        max_time_seconds: float = 300.0,
+        max_time_seconds: float = 300.0
     ) -> dict[str, Any]:
         """
         Perform per-instance TTT training with memory optimization.
-
+        
         Args:
             prompts: Training prompts for this instance
             tokenizer: Tokenizer instance
@@ -407,7 +406,7 @@ class MemoryEfficientTTTTrainer:
             batch_size: Batch size
             max_length: Maximum sequence length
             max_time_seconds: Maximum training time
-
+            
         Returns:
             Dictionary with training results
         """
@@ -418,7 +417,7 @@ class MemoryEfficientTTTTrainer:
             prompts=prompts,
             tokenizer=tokenizer,
             max_length=max_length,
-            cache_tokenized=len(prompts) <= 10,  # Cache only for small datasets
+            cache_tokenized=len(prompts) <= 10  # Cache only for small datasets
         )
 
         # Training metrics
@@ -439,7 +438,7 @@ class MemoryEfficientTTTTrainer:
                     optimizer=optimizer,
                     batch_size=batch_size,
                     accumulation_steps=1,
-                    max_steps=None,
+                    max_steps=None
                 )
 
                 epoch_metrics.append(metrics)
@@ -466,8 +465,8 @@ class MemoryEfficientTTTTrainer:
             "memory_efficiency": {
                 "peak_memory_mb": final_memory_stats.peak_memory_mb,
                 "memory_utilization": final_memory_stats.memory_utilization,
-                "within_limit": final_memory_stats.peak_memory_mb <= self.memory_monitor.memory_limit_mb,
-            },
+                "within_limit": final_memory_stats.peak_memory_mb <= self.memory_monitor.memory_limit_mb
+            }
         }
 
     def cleanup(self) -> None:
@@ -484,15 +483,15 @@ class MemoryEfficientTTTTrainer:
 @contextmanager
 def memory_efficient_context(
     memory_limit_mb: float = 10240,
-    cleanup_threshold: float = 0.8,
+    cleanup_threshold: float = 0.8
 ) -> Generator[MemoryMonitor, None, None]:
     """
     Context manager for memory-efficient operations.
-
+    
     Args:
         memory_limit_mb: Memory limit in MB
         cleanup_threshold: Threshold for automatic cleanup
-
+        
     Yields:
         MemoryMonitor instance
     """
@@ -509,7 +508,7 @@ def memory_efficient_context(
 def optimize_model_for_memory(model: nn.Module, enable_checkpointing: bool = True) -> None:
     """
     Apply memory optimizations to model.
-
+    
     Args:
         model: Model to optimize
         enable_checkpointing: Enable gradient checkpointing

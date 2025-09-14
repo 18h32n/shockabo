@@ -105,7 +105,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as exc:
-            # Handle unexpected errors
+            # Handle unexpected exceptions
             processing_time = time.time() - start_time
 
             # Create context for the error
@@ -121,7 +121,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             # Create ARC exception from generic exception
             arc_exc = ARCBaseException(
                 message="An unexpected error occurred during request processing",
-                error_code=ErrorCode.SYSTEM_INTERNAL_ERROR,
+                error_code=ErrorCode.INTERNAL_SERVER_ERROR,
                 details=str(exc),
                 severity=ErrorSeverity.HIGH,
                 context=context,
@@ -273,6 +273,7 @@ class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
         if self.enable_memory_monitoring:
             try:
                 import os
+
                 import psutil
                 process = psutil.Process(os.getpid())
                 memory_before = process.memory_info().rss / 1024 / 1024  # MB
@@ -296,6 +297,7 @@ class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
         if self.enable_memory_monitoring and memory_before:
             try:
                 import os
+
                 import psutil
                 process = psutil.Process(os.getpid())
                 memory_after = process.memory_info().rss / 1024 / 1024  # MB
@@ -494,7 +496,7 @@ performance_monitoring_middleware = None
 
 def setup_middleware(app, enable_detailed_logging: bool = False):
     """Setup all middleware components for the FastAPI application.
-
+    
     Args:
         app: FastAPI application instance
         enable_detailed_logging: Whether to enable detailed request/response logging

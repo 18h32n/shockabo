@@ -297,7 +297,7 @@ class TestCheckpointRepository:
         task_id = "integrity_task_001"
 
         # Save valid checkpoint
-        repo.save_checkpoint(
+        metadata = repo.save_checkpoint(
             checkpoint_id=checkpoint_id,
             task_id=task_id,
             model_state=sample_checkpoint_data,
@@ -314,7 +314,7 @@ class TestCheckpointRepository:
 
         # Corrupt the checkpoint file
         checkpoint_path = checkpoint_test_dir / "ttt" / task_id / f"{checkpoint_id}.pt"
-        checkpoint_path.stat().st_size
+        original_size = checkpoint_path.stat().st_size
 
         # Write corrupted data
         with open(checkpoint_path, "wb") as f:
@@ -390,7 +390,7 @@ class TestCheckpointRepository:
         # Run concurrent saves
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             futures = [executor.submit(save_checkpoint_worker, i) for i in range(20)]
-            [future.result() for future in concurrent.futures.as_completed(futures)]
+            concurrent_results = [future.result() for future in concurrent.futures.as_completed(futures)]
 
         # Verify all operations succeeded
         assert len(errors) == 0, f"Concurrent save errors: {errors}"
@@ -768,7 +768,7 @@ class TestEndToEndCheckpointIntegration:
             memory_limit_mb=10240
         )
 
-        TTTConfig(
+        ttt_config = TTTConfig(
             model_name="gpt2",
             device="cpu",
             quantization=False,

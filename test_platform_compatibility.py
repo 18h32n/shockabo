@@ -5,7 +5,7 @@ Platform Compatibility Testing for Story 1.4 TTT Implementation
 
 This script tests the TTT implementation across different platform environments:
 - Kaggle environment constraints
-- Google Colab environment constraints
+- Google Colab environment constraints  
 - Memory management across different GPU configurations
 - Configuration overrides for platform-specific settings
 - Data loading and model loading in different environments
@@ -524,7 +524,7 @@ class PlatformCompatibilityTester:
 
         # Test memory management strategies
         if torch.cuda.is_available():
-            torch.cuda.memory_allocated()
+            original_memory = torch.cuda.memory_allocated()
 
             # Test mixed precision
             try:
@@ -683,7 +683,7 @@ def main():
         )
 
         # Run tests
-        tester.run_all_tests()
+        results = tester.run_all_tests()
 
         # Generate report
         report = tester.generate_report(args.output)

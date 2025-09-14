@@ -4,12 +4,11 @@ MIT TTT Data Format Conversion Utilities
 This module provides data format conversion between ARC data models and MIT TTT format,
 implementing the exact data preprocessing approach from the MIT TTT research.
 """
-import json
 import random
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from src.domain.models import ARCTask
 

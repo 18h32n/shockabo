@@ -114,7 +114,7 @@ class TestMemoryConstraints:
         large_data = []
 
         # Allocate in steps to see memory growth
-        for _i in range(10):
+        for i in range(10):
             # Allocate ~10MB chunks
             chunk = [0] * (1024 * 1024)  # ~4MB (int list)
             large_data.append(chunk)
@@ -453,7 +453,7 @@ class TestTrainingTimeConstraints:
                             orchestrator = TrainingOrchestrator(model_service, config=config)
 
                             start_time = time.time()
-                            orchestrator.train(task)
+                            result = orchestrator.train(task)
                             elapsed_time = time.time() - start_time
 
                             training_times.append(elapsed_time)
@@ -714,7 +714,7 @@ class TestEndToEndPerformance:
 
                 # Adapt to task
                 adaptation_start = time.time()
-                adapter.adapt_to_task(task)
+                adaptation = adapter.adapt_to_task(task)
                 adaptation_time = time.time() - adaptation_start
 
                 # Generate solution
@@ -809,12 +809,12 @@ class TestEndToEndPerformance:
                 results = []
                 total_start_time = time.time()
 
-                for _i, task in enumerate(sample_arc_tasks):
+                for i, task in enumerate(sample_arc_tasks):
                     task_start_time = time.time()
 
                     # Adapt and solve
-                    adapter.adapt_to_task(task)
-                    adapter.solve(task)
+                    adaptation = adapter.adapt_to_task(task)
+                    solution = adapter.solve(task)
 
                     task_time = time.time() - task_start_time
                     results.append({
@@ -932,7 +932,7 @@ class TestFailureScenarios:
         }
 
         # Save valid checkpoint
-        repo.save_checkpoint(
+        metadata = repo.save_checkpoint(
             checkpoint_id=checkpoint_id,
             task_id=task_id,
             model_state=model_state,
@@ -958,7 +958,7 @@ class TestFailureScenarios:
         assert is_valid is False
 
         # Test recovery - listing should still work and exclude corrupted files
-        repo.list_checkpoints(task_id=task_id)
+        checkpoints = repo.list_checkpoints(task_id=task_id)
         # In a robust implementation, corrupted files might be excluded from listing
         # or marked as corrupted
 

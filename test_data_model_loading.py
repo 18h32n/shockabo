@@ -89,7 +89,7 @@ class DataModelLoadingTester:
 
     def _setup_test_environment(self):
         """Setup test environment with necessary directories."""
-        for _path_name, path_value in self.platform_paths.items():
+        for path_name, path_value in self.platform_paths.items():
             path_obj = Path(path_value)
             path_obj.mkdir(parents=True, exist_ok=True)
 
@@ -207,7 +207,7 @@ class DataModelLoadingTester:
                             break
                         batch_start = time.time()
                         # Simulate processing
-                        if isinstance(batch, list | tuple) and len(batch) > 0:
+                        if isinstance(batch, (list, tuple)) and len(batch) > 0:
                             _ = len(batch)
                         load_times.append(time.time() - batch_start)
 
@@ -723,7 +723,7 @@ def main():
         tester = DataModelLoadingTester(platform=args.platform)
 
         # Run tests
-        tester.run_all_data_model_tests()
+        results = tester.run_all_data_model_tests()
 
         # Generate report
         report = tester.generate_data_model_report(args.output)

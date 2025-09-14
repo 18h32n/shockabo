@@ -543,8 +543,8 @@ class ConfigurationOverrideTester:
         failed_tests = [r for r in self.results if not r.success]
 
         if failed_tests:
-            failed_platforms = {r.platform for r in failed_tests}
-            failed_categories = {r.override_category for r in failed_tests}
+            failed_platforms = set(r.platform for r in failed_tests)
+            failed_categories = set(r.override_category for r in failed_tests)
 
             recommendations.append(f"Failed tests detected in {len(failed_tests)} configurations")
             recommendations.append(f"Affected platforms: {', '.join(failed_platforms)}")
@@ -577,7 +577,7 @@ def main():
         tester = ConfigurationOverrideTester()
 
         # Run tests
-        tester.run_all_override_tests()
+        test_results = tester.run_all_override_tests()
 
         # Generate report
         report = tester.generate_override_report()

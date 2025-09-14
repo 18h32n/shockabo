@@ -229,7 +229,7 @@ class TestBatchedWandBClient:
         with patch("src.adapters.external.wandb_client.WANDB_AVAILABLE", True):
             with patch("sys.modules", {"wandb": MagicMock()}):
                 import wandb
-                with patch.object(wandb, "log"):
+                with patch.object(wandb, "log") as mock_log:
                     batched_client._current_run = MagicMock()
 
                     await batched_client.start_batch_processing()
@@ -319,7 +319,7 @@ class TestBatchedWandBClient:
         assert client.flush_interval_seconds == 10.0
         assert client.max_retry_attempts == 5
         assert client.retry_delay_seconds == 2.0
-        assert not client.enable_batching
+        assert client.enable_batching == False
 
         # Verify initial state
         assert not client._running

@@ -342,7 +342,7 @@ class GPUMemoryTester:
                     adapter = TTTAdapter(config=ttt_config)
 
                     # Create minimal test task
-                    ARCTask(
+                    test_task = ARCTask(
                         task_id=f"memory_test_{config['name']}",
                         task_source="training",
                         train_examples=[
@@ -529,7 +529,7 @@ def main():
         tester = GPUMemoryTester()
 
         # Run tests
-        tester.run_all_gpu_tests()
+        results = tester.run_all_gpu_tests()
 
         # Generate report
         report = tester.generate_gpu_report()

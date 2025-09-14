@@ -79,7 +79,7 @@ class PlatformSetupValidator:
                 'used_gb': disk_usage.used / (1024**3),
                 'free_gb': disk_usage.free / (1024**3)
             }
-        except Exception:
+        except:
             info['disk_usage'] = {'error': 'Could not determine disk usage'}
 
         return info
@@ -337,7 +337,7 @@ class PlatformSetupValidator:
 
         connectivity_results = []
 
-        for url, _description in test_urls:
+        for url, description in test_urls:
             try:
                 import socket
                 socket.create_connection((url, 443), timeout=5)
@@ -630,7 +630,7 @@ def main():
         # Print final summary
         print(f"\n{'='*60}")
         print("PLATFORM SETUP VALIDATION SUMMARY")
-        print(f"{ '='*60}")
+        print(f"{'='*60}")
         print(f"Platform: {summary['platform']}")
         print(f"Overall Status: {summary['overall_status'].upper()}")
         print(f"Checks: {summary['summary']['passed']}/{summary['summary']['total_checks']} passed")

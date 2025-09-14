@@ -4,22 +4,17 @@ Advanced Memory Optimization Utilities for 8B Model Training
 Enhanced memory management tools specifically designed for the constraints
 identified in the risk assessment (24GB GPU memory limit).
 """
-import functools
 import gc
 import logging
-import math
-import os
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any
 
-import psutil
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 from transformers import PreTrainedModel
 
 logger = logging.getLogger(__name__)
@@ -61,7 +56,7 @@ class MemorySnapshot:
 
 class AdaptiveBatchSizer:
     """Dynamically adjusts batch size based on memory usage."""
-    
+
     def __init__(
         self,
         initial_batch_size: int = 1,
@@ -88,12 +83,12 @@ class AdaptiveBatchSizer:
         self.memory_threshold = memory_threshold
         self.growth_factor = growth_factor
         self.shrink_factor = shrink_factor
-        
-        self.memory_history: List[float] = []
+
+        self.memory_history: list[float] = []
         self.oom_count = 0
         self.last_adjustment_time = 0
         self.adjustment_cooldown = 10  # seconds
-        
+
     def adjust_batch_size(self, current_memory_utilization: float) -> int:
         """
         Adjust batch size based on current memory utilization.
@@ -105,22 +100,22 @@ class AdaptiveBatchSizer:
             New batch size
         """
         current_time = time.time()
-        
+
         # Don't adjust too frequently
         if current_time - self.last_adjustment_time < self.adjustment_cooldown:
             return self.current_batch_size
-        
+
         self.memory_history.append(current_memory_utilization)
-        
+
         # Keep only recent history
         if len(self.memory_history) > 10:
             self.memory_history = self.memory_history[-10:]
-        
+
         # Calculate average recent memory usage
         avg_memory = sum(self.memory_history[-3:]) / min(3, len(self.memory_history))
-        
+
         new_batch_size = self.current_batch_size
-        
+
         # Shrink if memory usage is too high
         if avg_memory > self.memory_threshold:
             new_batch_size = max(
@@ -128,7 +123,7 @@ class AdaptiveBatchSizer:
                 int(self.current_batch_size * self.shrink_factor)
             )
             logger.info(f"Reducing batch size: {self.current_batch_size} -> {new_batch_size} (mem: {avg_memory:.1%})")
-        
+
         # Grow if memory usage is low and no recent OOM
         elif avg_memory < self.memory_threshold * 0.7 and self.oom_count == 0:
             new_batch_size = min(
@@ -136,27 +131,27 @@ class AdaptiveBatchSizer:
                 int(self.current_batch_size * self.growth_factor)
             )
             logger.info(f"Increasing batch size: {self.current_batch_size} -> {new_batch_size} (mem: {avg_memory:.1%})")
-        
+
         if new_batch_size != self.current_batch_size:
             self.current_batch_size = new_batch_size
             self.last_adjustment_time = current_time
-        
+
         return self.current_batch_size
-    
+
     def handle_oom(self) -> int:
         """Handle OOM error by aggressively reducing batch size."""
         self.oom_count += 1
         old_batch_size = self.current_batch_size
-        
+
         # Emergency reduction
         self.current_batch_size = max(
             self.min_batch_size,
             self.current_batch_size // 2
         )
-        
+
         logger.warning(f"OOM handled: batch size {old_batch_size} -> {self.current_batch_size}")
         return self.current_batch_size
-    
+
     def reset_oom_count(self):
         """Reset OOM count after successful training."""
         if self.oom_count > 0:
@@ -166,7 +161,7 @@ class AdaptiveBatchSizer:
 
 class MemoryDefragmenter:
     """Handles GPU memory fragmentation."""
-    
+
     def __init__(self, defrag_threshold: float = 0.3):
         """
         Initialize memory defragmenter.
@@ -177,61 +172,61 @@ class MemoryDefragmenter:
         self.defrag_threshold = defrag_threshold
         self.last_defrag_time = 0
         self.defrag_cooldown = 30  # seconds
-        
+
     def get_fragmentation_ratio(self) -> float:
         """Calculate memory fragmentation ratio."""
         if not torch.cuda.is_available():
             return 0.0
-        
+
         allocated = torch.cuda.memory_allocated()
         reserved = torch.cuda.memory_reserved()
-        
+
         if reserved == 0:
             return 0.0
-        
+
         # Fragmentation ratio = (reserved - allocated) / reserved
         return (reserved - allocated) / reserved
-    
+
     def should_defragment(self) -> bool:
         """Check if memory defragmentation is needed."""
         current_time = time.time()
-        
+
         # Don't defragment too frequently
         if current_time - self.last_defrag_time < self.defrag_cooldown:
             return False
-        
+
         fragmentation_ratio = self.get_fragmentation_ratio()
         return fragmentation_ratio > self.defrag_threshold
-    
+
     def defragment(self) -> bool:
         """Perform memory defragmentation."""
         if not torch.cuda.is_available():
             return False
-        
+
         try:
             initial_fragmentation = self.get_fragmentation_ratio()
-            
+
             # Clear cache and force garbage collection
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
             gc.collect()
-            
+
             # Multiple rounds of cleanup
             for _ in range(3):
                 torch.cuda.empty_cache()
                 gc.collect()
                 time.sleep(0.1)
-            
+
             final_fragmentation = self.get_fragmentation_ratio()
-            
+
             self.last_defrag_time = time.time()
-            
+
             logger.info(
                 f"Memory defragmentation: {initial_fragmentation:.1%} -> {final_fragmentation:.1%}"
             )
-            
+
             return final_fragmentation < initial_fragmentation
-            
+
         except Exception as e:
             logger.error(f"Memory defragmentation failed: {e}")
             return False
@@ -239,7 +234,7 @@ class MemoryDefragmenter:
 
 class GradientAccumulator:
     """Manages gradient accumulation for large effective batch sizes."""
-    
+
     def __init__(
         self,
         accumulation_steps: int = 4,
@@ -257,58 +252,58 @@ class GradientAccumulator:
         self.accumulation_steps = accumulation_steps
         self.max_grad_norm = max_grad_norm
         self.adaptive_accumulation = adaptive_accumulation
-        
+
         self.current_step = 0
         self.accumulated_loss = 0.0
-        self.memory_usage_history: List[float] = []
-        
+        self.memory_usage_history: list[float] = []
+
     def should_step(self) -> bool:
         """Check if optimizer should step."""
         return (self.current_step + 1) % self.accumulation_steps == 0
-    
+
     def accumulate_loss(self, loss: torch.Tensor) -> torch.Tensor:
         """Accumulate loss for current step."""
         # Scale loss by accumulation steps
         scaled_loss = loss / self.accumulation_steps
         self.accumulated_loss += scaled_loss.item()
         self.current_step += 1
-        
+
         return scaled_loss
-    
+
     def get_accumulated_loss(self) -> float:
         """Get accumulated loss and reset."""
         loss = self.accumulated_loss
         if self.should_step():
             self.accumulated_loss = 0.0
         return loss
-    
+
     def clip_gradients(self, model: nn.Module) -> float:
         """Clip gradients and return norm."""
         return torch.nn.utils.clip_grad_norm_(
             model.parameters(),
             self.max_grad_norm
         ).item()
-    
+
     def adapt_accumulation_steps(self, memory_utilization: float) -> None:
         """Adapt accumulation steps based on memory utilization."""
         if not self.adaptive_accumulation:
             return
-        
+
         self.memory_usage_history.append(memory_utilization)
-        
+
         # Keep only recent history
         if len(self.memory_usage_history) > 10:
             self.memory_usage_history = self.memory_usage_history[-10:]
-        
+
         avg_memory = sum(self.memory_usage_history[-3:]) / min(3, len(self.memory_usage_history))
-        
+
         # Increase accumulation if memory usage is high
         if avg_memory > 0.9:
             new_steps = min(16, self.accumulation_steps * 2)
             if new_steps != self.accumulation_steps:
                 logger.info(f"Increasing gradient accumulation: {self.accumulation_steps} -> {new_steps}")
                 self.accumulation_steps = new_steps
-        
+
         # Decrease accumulation if memory usage is low
         elif avg_memory < 0.6:
             new_steps = max(1, self.accumulation_steps // 2)
@@ -319,7 +314,7 @@ class GradientAccumulator:
 
 class AdvancedMemoryMonitor:
     """Advanced memory monitoring with detailed analytics."""
-    
+
     def __init__(self, monitoring_interval: float = 1.0):
         """
         Initialize advanced memory monitor.
@@ -328,54 +323,54 @@ class AdvancedMemoryMonitor:
             monitoring_interval: Monitoring interval in seconds
         """
         self.monitoring_interval = monitoring_interval
-        self.snapshots: List[MemorySnapshot] = []
-        self.monitoring_thread: Optional[threading.Thread] = None
+        self.snapshots: list[MemorySnapshot] = []
+        self.monitoring_thread: threading.Thread | None = None
         self.stop_monitoring = threading.Event()
-        
+
         self.defragmenter = MemoryDefragmenter()
-        
+
     def start_monitoring(self):
         """Start continuous memory monitoring."""
         if self.monitoring_thread is not None:
             return
-        
+
         self.stop_monitoring.clear()
         self.monitoring_thread = threading.Thread(target=self._monitoring_loop)
         self.monitoring_thread.daemon = True
         self.monitoring_thread.start()
-        
+
         logger.info("Started advanced memory monitoring")
-    
+
     def stop_monitoring_thread(self):
         """Stop continuous memory monitoring."""
         if self.monitoring_thread is None:
             return
-        
+
         self.stop_monitoring.set()
         self.monitoring_thread.join()
         self.monitoring_thread = None
-        
+
         logger.info("Stopped advanced memory monitoring")
-    
+
     def _monitoring_loop(self):
         """Main monitoring loop."""
         while not self.stop_monitoring.wait(self.monitoring_interval):
             try:
                 snapshot = self.capture_snapshot()
                 self.snapshots.append(snapshot)
-                
+
                 # Keep only recent snapshots (last hour)
                 max_snapshots = int(3600 / self.monitoring_interval)
                 if len(self.snapshots) > max_snapshots:
                     self.snapshots = self.snapshots[-max_snapshots:]
-                
+
                 # Trigger defragmentation if needed
                 if self.defragmenter.should_defragment():
                     self.defragmenter.defragment()
-                
+
             except Exception as e:
                 logger.error(f"Error in memory monitoring: {e}")
-    
+
     def capture_snapshot(self) -> MemorySnapshot:
         """Capture current memory snapshot."""
         if not torch.cuda.is_available():
@@ -388,18 +383,18 @@ class AdvancedMemoryMonitor:
                 fragmentation_ratio=0,
                 active_tensors=0
             )
-        
+
         allocated = torch.cuda.memory_allocated() / 1024 / 1024
         reserved = torch.cuda.memory_reserved() / 1024 / 1024
         max_allocated = torch.cuda.max_memory_allocated() / 1024 / 1024
         total_memory = torch.cuda.get_device_properties(0).total_memory / 1024 / 1024
-        
+
         utilization = allocated / total_memory
         fragmentation = self.defragmenter.get_fragmentation_ratio()
-        
+
         # Count active tensors (approximate)
         active_tensors = len([obj for obj in gc.get_objects() if isinstance(obj, torch.Tensor)])
-        
+
         return MemorySnapshot(
             timestamp=time.time(),
             allocated_mb=allocated,
@@ -409,14 +404,14 @@ class AdvancedMemoryMonitor:
             fragmentation_ratio=fragmentation,
             active_tensors=active_tensors
         )
-    
-    def get_memory_stats(self) -> Dict[str, Any]:
+
+    def get_memory_stats(self) -> dict[str, Any]:
         """Get comprehensive memory statistics."""
         if not self.snapshots:
             return {"error": "No snapshots available"}
-        
+
         recent_snapshots = self.snapshots[-10:]  # Last 10 snapshots
-        
+
         return {
             "current": {
                 "allocated_mb": recent_snapshots[-1].allocated_mb,
@@ -434,63 +429,63 @@ class AdvancedMemoryMonitor:
             "alerts": self._generate_memory_alerts(recent_snapshots),
             "recommendations": self._generate_memory_recommendations(recent_snapshots),
         }
-    
-    def _generate_memory_alerts(self, snapshots: List[MemorySnapshot]) -> List[str]:
+
+    def _generate_memory_alerts(self, snapshots: list[MemorySnapshot]) -> list[str]:
         """Generate memory alerts based on recent snapshots."""
         alerts = []
-        
+
         if not snapshots:
             return alerts
-        
+
         current = snapshots[-1]
-        
+
         if current.memory_utilization > 0.9:
             alerts.append("CRITICAL: Memory utilization exceeds 90%")
         elif current.memory_utilization > 0.8:
             alerts.append("WARNING: Memory utilization exceeds 80%")
-        
+
         if current.fragmentation_ratio > 0.4:
             alerts.append("WARNING: High memory fragmentation detected")
-        
+
         if len(snapshots) > 5:
             growth_rate = (snapshots[-1].allocated_mb - snapshots[-5].allocated_mb) / 5
             if growth_rate > 100:  # 100MB per snapshot
                 alerts.append(f"WARNING: Rapid memory growth detected ({growth_rate:.1f}MB/snapshot)")
-        
+
         return alerts
-    
-    def _generate_memory_recommendations(self, snapshots: List[MemorySnapshot]) -> List[str]:
+
+    def _generate_memory_recommendations(self, snapshots: list[MemorySnapshot]) -> list[str]:
         """Generate memory optimization recommendations."""
         recommendations = []
-        
+
         if not snapshots:
             return recommendations
-        
+
         current = snapshots[-1]
         avg_util = sum(s.memory_utilization for s in snapshots) / len(snapshots)
-        
+
         if avg_util > 0.85:
             recommendations.extend([
                 "Enable more aggressive gradient checkpointing",
                 "Reduce batch size or increase gradient accumulation",
                 "Consider CPU offloading for optimizer states",
             ])
-        
+
         if current.fragmentation_ratio > 0.3:
             recommendations.extend([
                 "Enable automatic memory defragmentation",
                 "Reduce tensor creation/destruction frequency",
             ])
-        
+
         if current.active_tensors > 10000:
             recommendations.append("High number of active tensors - check for memory leaks")
-        
+
         return recommendations
 
 
 class OptimizedModelWrapper:
     """Wrapper for applying comprehensive memory optimizations to models."""
-    
+
     def __init__(
         self,
         model: PreTrainedModel,
@@ -505,126 +500,59 @@ class OptimizedModelWrapper:
         """
         self.model = model
         self.config = config
-        
+
         self.batch_sizer = AdaptiveBatchSizer()
         self.gradient_accumulator = GradientAccumulator(
             accumulation_steps=config.gradient_accumulation_steps
         )
         self.memory_monitor = AdvancedMemoryMonitor()
-        self.checkpointed_memory_manager = None
-        
+
         self._apply_optimizations()
-    
+
     def _apply_optimizations(self):
         """Apply memory optimizations to the model."""
         logger.info(f"Applying {self.config.level.value} memory optimizations...")
-        
+
         # Gradient checkpointing
         if self.config.gradient_checkpointing_ratio > 0:
             self._apply_gradient_checkpointing()
-        
+
         # Activation checkpointing
         if self.config.activation_checkpointing:
             self._apply_activation_checkpointing()
-        
+
         # Mixed precision
         if self.config.mixed_precision:
             self._setup_mixed_precision()
-        
+
         # CPU offloading
         if self.config.cpu_offload:
             self._setup_cpu_offload()
-        
+
         logger.info("Memory optimizations applied successfully")
-    
+
     def _apply_gradient_checkpointing(self):
-        """Apply selective gradient checkpointing with enhanced control."""
-        from src.utils.memory_manager import GradientCheckpointingManager, MemoryManager
-        
-        # Enable basic gradient checkpointing
+        """Apply selective gradient checkpointing."""
         if hasattr(self.model, 'gradient_checkpointing_enable'):
             self.model.gradient_checkpointing_enable()
-            logger.info("Enabled basic gradient checkpointing")
-        
-        # Apply advanced selective checkpointing
-        try:
-            # Create memory manager for checkpointing
-            device = next(self.model.parameters()).device
-            memory_manager = MemoryManager(
-                device=device,
-                memory_limit_gb=24.0,  # 8B model limit
-                enable_monitoring=False
-            )
-            
-            # Apply selective checkpointing based on config
+            logger.info("Enabled gradient checkpointing")
+
+        # For more granular control, implement layer-specific checkpointing
+        if hasattr(self.model, 'encoder') and hasattr(self.model.encoder, 'layer'):
+            layers = self.model.encoder.layer
             checkpoint_every = max(1, int(1.0 / self.config.gradient_checkpointing_ratio))
-            checkpointed_count = memory_manager.enable_selective_checkpointing(
-                self.model,
-                layers_to_checkpoint=checkpoint_every
-            )
-            
-            if checkpointed_count > 0:
-                self.checkpointed_memory_manager = memory_manager
-                logger.info(
-                    f"Enhanced selective checkpointing: {checkpointed_count} layers "
-                    f"(every {checkpoint_every} layers, ratio: {self.config.gradient_checkpointing_ratio:.2f})"
-                )
-                
-                # Estimate memory savings
-                input_size = (2, 512)  # Typical batch size and sequence length
-                savings_estimate = memory_manager.estimate_memory_savings(self.model, input_size)
-                logger.info(
-                    f"Estimated memory savings: {savings_estimate.get('estimated_savings_mb', 0):.1f}MB "
-                    f"({savings_estimate.get('savings_percentage', 0):.1f}%)"
-                )
-            else:
-                logger.warning("No layers were successfully checkpointed")
-                
-        except Exception as e:
-            logger.warning(f"Advanced checkpointing failed, using basic implementation: {e}")
-            
-            # Fallback to basic layer-specific checkpointing
-            self._apply_fallback_checkpointing()
-    
-    def _apply_fallback_checkpointing(self):
-        """Fallback gradient checkpointing implementation."""
-        checkpoint_every = max(1, int(1.0 / self.config.gradient_checkpointing_ratio))
-        checkpointed_layers = 0
-        
-        # Try different model architectures
-        for attr_path in [
-            ('model', 'layers'),      # Llama-style
-            ('transformer', 'h'),     # GPT-style  
-            ('encoder', 'layer'),     # BERT-style
-            ('layers',),              # Direct access
-        ]:
-            try:
-                obj = self.model
-                for attr in attr_path:
-                    obj = getattr(obj, attr)
-                
-                layers = list(obj)
-                for i, layer in enumerate(layers):
-                    if i % checkpoint_every == 0:
-                        if hasattr(layer, 'gradient_checkpointing'):
-                            layer.gradient_checkpointing = True
-                        checkpointed_layers += 1
-                
-                if checkpointed_layers > 0:
-                    logger.info(f"Fallback checkpointing: {checkpointed_layers}/{len(layers)} layers")
-                    break
-                    
-            except (AttributeError, TypeError):
-                continue
-        
-        if checkpointed_layers == 0:
-            logger.warning("Could not apply selective checkpointing to any layers")
-    
+
+            for i, layer in enumerate(layers):
+                if i % checkpoint_every == 0:
+                    layer.gradient_checkpointing = True
+
+            logger.info(f"Applied selective checkpointing to {len(layers) // checkpoint_every} layers")
+
     def _apply_activation_checkpointing(self):
         """Apply activation checkpointing."""
         # This would be implemented based on the specific model architecture
         logger.info("Activation checkpointing configured")
-    
+
     def _setup_mixed_precision(self):
         """Setup mixed precision training."""
         # Convert model to half precision where appropriate
@@ -635,49 +563,42 @@ class OptimizedModelWrapper:
         else:
             # Standard mixed precision with autocast
             logger.info("Mixed precision training enabled (autocast)")
-    
+
     def _setup_cpu_offload(self):
         """Setup CPU offloading for model parameters."""
         logger.info("CPU offloading configured")
         # Implementation would depend on the specific offloading strategy
-    
+
     @contextmanager
     def optimized_training_context(self):
         """Context manager for optimized training."""
         self.memory_monitor.start_monitoring()
-        
+
         try:
             yield self
         finally:
             self.memory_monitor.stop_monitoring_thread()
-            
-            # Clean up checkpointed memory manager
-            if self.checkpointed_memory_manager is not None:
-                try:
-                    self.checkpointed_memory_manager.disable_checkpointing()
-                except Exception as e:
-                    logger.warning(f"Failed to clean up checkpointed memory manager: {e}")
-    
+
     def optimized_forward(
         self,
-        batch: Dict[str, torch.Tensor],
+        batch: dict[str, torch.Tensor],
         optimizer: torch.optim.Optimizer
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Perform optimized forward pass with memory management."""
         # Get current memory stats
         memory_stats = self.memory_monitor.capture_snapshot()
-        
+
         # Adapt batch size if needed
         current_batch_size = batch["input_ids"].shape[0]
         recommended_batch_size = self.batch_sizer.adjust_batch_size(
             memory_stats.memory_utilization
         )
-        
+
         # Adjust gradient accumulation based on memory
         self.gradient_accumulator.adapt_accumulation_steps(
             memory_stats.memory_utilization
         )
-        
+
         try:
             # Forward pass with mixed precision
             if self.config.mixed_precision:
@@ -687,13 +608,13 @@ class OptimizedModelWrapper:
             else:
                 outputs = self.model(**batch)
                 loss = outputs.loss
-            
+
             # Accumulate gradients
             scaled_loss = self.gradient_accumulator.accumulate_loss(loss)
-            
+
             # Backward pass
             scaled_loss.backward()
-            
+
             # Optimizer step if accumulation is complete
             step_taken = False
             if self.gradient_accumulator.should_step():
@@ -701,7 +622,7 @@ class OptimizedModelWrapper:
                 optimizer.step()
                 optimizer.zero_grad()
                 step_taken = True
-            
+
             return {
                 "loss": loss.item(),
                 "scaled_loss": scaled_loss.item(),
@@ -711,18 +632,18 @@ class OptimizedModelWrapper:
                 "recommended_batch_size": recommended_batch_size,
                 "current_batch_size": current_batch_size,
             }
-            
+
         except torch.cuda.OutOfMemoryError:
             # Handle OOM with batch size reduction
             new_batch_size = self.batch_sizer.handle_oom()
             logger.warning(f"OOM handled, new batch size: {new_batch_size}")
-            
+
             # Clear cache and retry would happen at higher level
             torch.cuda.empty_cache()
-            
+
             raise  # Re-raise for higher-level handling
-    
-    def get_optimization_stats(self) -> Dict[str, Any]:
+
+    def get_optimization_stats(self) -> dict[str, Any]:
         """Get comprehensive optimization statistics."""
         return {
             "config": {
@@ -742,11 +663,6 @@ class OptimizedModelWrapper:
                 "accumulated_loss": self.gradient_accumulator.accumulated_loss,
             },
             "memory_monitor": self.memory_monitor.get_memory_stats(),
-            "checkpointing_stats": (
-                self.checkpointed_memory_manager.get_checkpointing_stats()
-                if self.checkpointed_memory_manager is not None
-                else {"checkpointing_enabled": False}
-            ),
         }
 
 
@@ -774,46 +690,46 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     logger.info("Testing advanced memory optimization utilities...")
-    
+
     # Test adaptive batch sizer
     batch_sizer = AdaptiveBatchSizer(initial_batch_size=8)
-    
+
     # Simulate different memory conditions
     for memory_util in [0.5, 0.7, 0.9, 0.95]:
         new_batch_size = batch_sizer.adjust_batch_size(memory_util)
         logger.info(f"Memory: {memory_util:.1%}, Batch size: {new_batch_size}")
         time.sleep(1)  # Simulate time passing
-    
+
     # Test OOM handling
     emergency_batch_size = batch_sizer.handle_oom()
     logger.info(f"Emergency batch size after OOM: {emergency_batch_size}")
-    
+
     # Test memory monitor
     monitor = AdvancedMemoryMonitor(monitoring_interval=0.5)
     monitor.start_monitoring()
-    
+
     # Let it monitor for a few seconds
     time.sleep(3)
-    
+
     monitor.stop_monitoring_thread()
-    
+
     # Get stats
     stats = monitor.get_memory_stats()
     logger.info(f"Memory monitoring stats: {stats}")
-    
+
     # Test gradient accumulator
     accumulator = GradientAccumulator(accumulation_steps=4)
-    
+
     for step in range(10):
         # Simulate loss
         fake_loss = torch.tensor(0.5)
         scaled_loss = accumulator.accumulate_loss(fake_loss)
         should_step = accumulator.should_step()
-        
+
         logger.info(f"Step {step}: Loss {scaled_loss:.3f}, Should step: {should_step}")
-    
+
     print("\n" + "="*70)
     print("ADVANCED MEMORY OPTIMIZATION UTILITIES READY")
     print("="*70)

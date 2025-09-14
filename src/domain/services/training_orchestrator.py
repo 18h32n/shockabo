@@ -363,10 +363,10 @@ class TrainingOrchestrator:
     def train(self, task: ARCTask) -> dict[str, Any]:
         """
         Execute complete training pipeline.
-
+        
         Args:
             task: ARC task to train on
-
+            
         Returns:
             Training results and metrics
         """
@@ -385,7 +385,7 @@ class TrainingOrchestrator:
             memory_status = self.model_service.memory_manager.get_memory_usage()
             logger.info(f"Epoch {epoch} - Memory usage: {memory_status['usage_percentage']:.1f}%")
 
-            for _batch_idx, batch in enumerate(self.train_dataloader):
+            for batch_idx, batch in enumerate(self.train_dataloader):
                 # Training step
                 metrics = self.train_step(batch, global_step, epoch)
                 epoch_loss += metrics.loss

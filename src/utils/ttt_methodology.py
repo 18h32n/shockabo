@@ -115,11 +115,11 @@ class SelfConsistencyVoter:
     ) -> tuple[list[list[int]], float]:
         """
         Vote on multiple predictions using majority voting.
-
+        
         Args:
             predictions: List of predicted grids
             confidence_scores: Optional confidence scores for weighting
-
+            
         Returns:
             Tuple of (best_prediction, confidence_score)
         """
@@ -310,7 +310,7 @@ class TTTTrainer:
 
         self.model.train()
 
-        for _epoch in range(num_epochs):
+        for epoch in range(num_epochs):
             # Process prompts in batches
             for i in range(0, len(prompts), self.config.batch_size):
                 batch_prompts = prompts[i:i + self.config.batch_size]
@@ -355,11 +355,11 @@ class TTTTrainer:
     ) -> TTTAdaptationResult:
         """
         Perform per-instance adaptation using MIT TTT methodology.
-
+        
         Args:
             ttt_task: TTT-formatted task
             adaptation_id: Optional adaptation identifier
-
+            
         Returns:
             TTT adaptation result
         """
@@ -472,11 +472,11 @@ class TTTTrainer:
     ) -> tuple[list[list[int]], float]:
         """
         Generate prediction using adapted model.
-
+        
         Args:
             ttt_task: TTT-formatted task
             use_self_consistency: Whether to use self-consistency voting
-
+            
         Returns:
             Tuple of (prediction_grid, confidence_score)
         """
@@ -643,11 +643,11 @@ class MIT_TTTStrategy:
     ) -> tuple[list[list[int]], dict[str, Any]]:
         """
         Solve ARC task using complete MIT TTT methodology.
-
+        
         Args:
             arc_task: ARC task to solve
             use_self_consistency: Whether to use self-consistency voting
-
+            
         Returns:
             Tuple of (prediction, metadata)
         """

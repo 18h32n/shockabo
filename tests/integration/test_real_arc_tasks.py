@@ -254,7 +254,7 @@ class TestRealARCTaskProcessing:
 
                 # Create adapter and run pipeline
                 adapter = TTTAdapter(config=production_ttt_config)
-                PerformanceValidator()
+                validator = PerformanceValidator()
 
                 start_time = time.time()
 
@@ -307,6 +307,7 @@ class TestRealARCTaskProcessing:
 
                 # Verify output dimensions match test input
                 predicted_grid = solution.predictions[0]
+                test_input = task.test_input
                 # Grid dimensions might change based on pattern, but should be reasonable
                 assert len(predicted_grid) > 0
                 assert len(predicted_grid[0]) > 0
@@ -352,7 +353,7 @@ class TestRealARCTaskProcessing:
                 results = []
                 total_start_time = time.time()
 
-                for _i, task in enumerate(tasks):
+                for i, task in enumerate(tasks):
                     task_start_time = time.time()
 
                     # Adapt and solve
@@ -487,7 +488,7 @@ class TestRealARCTaskProcessing:
 
                     # Process task
                     adaptation = adapter.adapt_to_task(task)
-                    adapter.solve(task)
+                    solution = adapter.solve(task)
 
                     processing_time = time.time() - start_time
 
@@ -577,8 +578,8 @@ class TestRealARCTaskProcessing:
                     before_task_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
 
                     # Process task
-                    adapter.adapt_to_task(task)
-                    adapter.solve(task)
+                    adaptation = adapter.adapt_to_task(task)
+                    solution = adapter.solve(task)
 
                     # Measure memory after task processing
                     after_task_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB

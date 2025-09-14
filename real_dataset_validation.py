@@ -206,7 +206,7 @@ class RealDatasetValidator:
                         continue
 
                     # Check grid is rectangular
-                    if len({len(row) for row in input_grid}) > 1:
+                    if len(set(len(row) for row in input_grid)) > 1:
                         integrity_results["grid_issues"].append(f"{task_id}: Non-rectangular input grid in train example {i}")
 
                 # Test input validation
@@ -214,7 +214,7 @@ class RealDatasetValidator:
                     integrity_results["grid_issues"].append(f"{task_id}: Invalid test input")
                     continue
 
-                if len({len(row) for row in task.test_input}) > 1:
+                if len(set(len(row) for row in task.test_input)) > 1:
                     integrity_results["grid_issues"].append(f"{task_id}: Non-rectangular test input")
 
                 integrity_results["valid_tasks"] += 1

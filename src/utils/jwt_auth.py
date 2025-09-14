@@ -30,7 +30,7 @@ class JWTConfig:
             logger.warning("jwt_secret_generated", message="Using generated JWT secret. Set JWT_SECRET_KEY in production.")
 
         self.algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
-        self.access_token_expire_minutes = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+        self.access_token_expire_minutes = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
         self.refresh_token_expire_days = int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
         self.issuer = os.environ.get("JWT_ISSUER", "arc-evaluation-system")
         self.audience = os.environ.get("JWT_AUDIENCE", "arc-evaluation-api")
@@ -41,7 +41,7 @@ class JWTManager:
 
     def __init__(self, config: JWTConfig | None = None):
         """Initialize JWT manager.
-
+        
         Args:
             config: JWT configuration (uses defaults if not provided)
         """
@@ -55,12 +55,12 @@ class JWTManager:
         expires_delta: timedelta | None = None
     ) -> str:
         """Create a JWT access token.
-
+        
         Args:
             subject: The subject of the token (usually user ID)
             additional_claims: Additional claims to include in the token
             expires_delta: Optional custom expiration time
-
+            
         Returns:
             Encoded JWT token
         """
@@ -88,10 +88,10 @@ class JWTManager:
 
     def create_refresh_token(self, subject: str) -> str:
         """Create a JWT refresh token.
-
+        
         Args:
             subject: The subject of the token (usually user ID)
-
+            
         Returns:
             Encoded JWT refresh token
         """
@@ -114,14 +114,14 @@ class JWTManager:
 
     def verify_token(self, token: str, token_type: str = "access") -> dict[str, Any]:
         """Verify and decode a JWT token.
-
+        
         Args:
             token: The JWT token to verify
             token_type: Expected token type ("access" or "refresh")
-
+            
         Returns:
             Decoded token claims
-
+            
         Raises:
             HTTPException: If token is invalid or expired
         """
@@ -145,28 +145,28 @@ class JWTManager:
             logger.debug("token_verified", subject=payload.get("sub"), token_type=token_type)
             return payload
 
-        except jwt.ExpiredSignatureError as e:
+        except jwt.ExpiredSignatureError:
             logger.warning("token_expired", token_type=token_type)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired"
-            ) from e
+            )
         except jwt.InvalidTokenError as e:
             logger.warning("token_invalid", token_type=token_type, error=str(e))
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token"
-            ) from e
+            )
 
     def get_current_user(self, credentials: HTTPAuthorizationCredentials) -> str:
         """Extract current user from JWT token.
-
+        
         Args:
             credentials: HTTP Bearer credentials
-
+            
         Returns:
             User ID from token
-
+            
         Raises:
             HTTPException: If token is invalid
         """
@@ -184,10 +184,10 @@ class JWTManager:
 
     async def authenticate_websocket(self, websocket: WebSocket) -> str | None:
         """Authenticate a WebSocket connection.
-
+        
         Args:
             websocket: The WebSocket connection to authenticate
-
+            
         Returns:
             User ID if authenticated, None otherwise
         """
@@ -218,7 +218,7 @@ class JWTManager:
             logger.info("websocket_authenticated", user_id=user_id)
             return user_id
 
-        except HTTPException as e:
+        except HTTPException:
             logger.warning("websocket_auth_failed", reason="Token verification failed")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication failed")
             return None
@@ -229,12 +229,12 @@ class JWTManager:
 
     def create_api_key(self, user_id: str, name: str, expires_days: int = 365) -> str:
         """Create a long-lived API key for service authentication.
-
+        
         Args:
             user_id: User ID associated with the API key
             name: Name/description for the API key
             expires_days: Number of days until expiration
-
+            
         Returns:
             API key token
         """
@@ -248,7 +248,7 @@ class JWTManager:
             "aud": self.config.audience,
             "type": "api_key",
             "name": name,
-            "jti": secrets.token_urlsafe(16),
+            "key_id": secrets.token_urlsafe(16),
         }
 
         token = jwt.encode(claims, self.config.secret_key, algorithm=self.config.algorithm)
@@ -268,7 +268,7 @@ _jwt_manager: JWTManager | None = None
 
 def get_jwt_manager() -> JWTManager:
     """Get the global JWT manager instance.
-
+    
     Returns:
         JWTManager instance
     """
@@ -276,4 +276,3 @@ def get_jwt_manager() -> JWTManager:
     if _jwt_manager is None:
         _jwt_manager = JWTManager()
     return _jwt_manager
- 

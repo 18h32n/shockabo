@@ -5,7 +5,6 @@ and middleware for consistent error handling across all modules.
 """
 
 import traceback
-from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -104,10 +103,10 @@ class BaseEvaluationError(Exception):
         code: ErrorCode,
         details: list[ErrorDetail] | None = None,
         recovery_suggestions: list[str] | None = None,
-        context: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None
     ):
         """Initialize evaluation error.
-
+        
         Args:
             message: Human-readable error message
             code: Standardized error code
@@ -185,14 +184,14 @@ class ErrorHandler:
     @staticmethod
     def create_error_response(
         error: BaseEvaluationError | Exception,
-        request_id: str | None = None,
+        request_id: str | None = None
     ) -> ErrorResponse:
         """Create standardized error response.
-
+        
         Args:
             error: Error to format
             request_id: Optional request ID for tracking
-
+            
         Returns:
             Formatted error response
         """
@@ -205,7 +204,7 @@ class ErrorHandler:
                 details=error.details,
                 request_id=request_id,
                 timestamp=datetime.now().isoformat(),
-                recovery_suggestions=error.recovery_suggestions,
+                recovery_suggestions=error.recovery_suggestions
             )
 
         # Handle standard exceptions
@@ -214,7 +213,7 @@ class ErrorHandler:
                 code=ErrorCode.SYSTEM_INTERNAL_ERROR,
                 message=error.detail if isinstance(error.detail, str) else str(error.detail),
                 request_id=request_id,
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.now().isoformat()
             )
 
         # Generic exception
@@ -223,16 +222,16 @@ class ErrorHandler:
             message=str(error),
             request_id=request_id,
             timestamp=datetime.now().isoformat(),
-            recovery_suggestions=["Check system logs", "Retry the operation", "Contact support if issue persists"],
+            recovery_suggestions=["Check system logs", "Retry the operation", "Contact support if issue persists"]
         )
 
     @staticmethod
     def get_http_status_code(error_code: ErrorCode) -> int:
         """Get appropriate HTTP status code for error code.
-
+        
         Args:
             error_code: Error code
-
+            
         Returns:
             HTTP status code
         """
@@ -295,10 +294,10 @@ class ErrorHandler:
     def log_error(
         error: BaseEvaluationError | Exception,
         context: dict[str, Any] | None = None,
-        request_id: str | None = None,
+        request_id: str | None = None
     ):
         """Log error with structured data.
-
+        
         Args:
             error: Error to log
             context: Optional context information
@@ -308,14 +307,14 @@ class ErrorHandler:
             "error_type": type(error).__name__,
             "error_message": str(error),
             "request_id": request_id,
-            **(context or {}),
+            **(context or {})
         }
 
         if isinstance(error, BaseEvaluationError):
             log_data.update({
                 "error_code": error.code.value,
                 "error_details": [detail.dict() for detail in error.details],
-                "error_context": error.context,
+                "error_context": error.context
             })
 
         # Add stack trace for debugging
@@ -329,11 +328,11 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Handle request with error catching.
-
+        
         Args:
             request: FastAPI request
             call_next: Next middleware in chain
-
+            
         Returns:
             Response with error handling
         """
@@ -355,7 +354,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=status_code,
                 content=error_response.dict(),
-                headers={"x-request-id": request_id},
+                headers={"x-request-id": request_id}
             )
 
         except HTTPException as error:
@@ -366,7 +365,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=error.status_code,
                 content=error_response.dict(),
-                headers={"x-request-id": request_id},
+                headers={"x-request-id": request_id}
             )
 
         except Exception as error:
@@ -376,9 +375,9 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 context={
                     "path": request.url.path,
                     "method": request.method,
-                    "client": str(request.client) if request.client else None,
+                    "client": str(request.client) if request.client else None
                 },
-                request_id=request_id,
+                request_id=request_id
             )
 
             error_response = ErrorHandler.create_error_response(error, request_id)
@@ -386,7 +385,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=500,
                 content=error_response.dict(),
-                headers={"x-request-id": request_id},
+                headers={"x-request-id": request_id}
             )
 
 
@@ -395,28 +394,28 @@ RECOVERY_STRATEGIES = {
     ErrorCode.AUTH_EXPIRED_TOKEN: [
         "Refresh your authentication token",
         "Re-authenticate with valid credentials",
-        "Check token expiration settings",
+        "Check token expiration settings"
     ],
     ErrorCode.RATE_LIMIT_EXCEEDED: [
         "Wait for rate limit window to reset",
         "Reduce request frequency",
-        "Consider upgrading to higher rate limits",
+        "Consider upgrading to higher rate limits"
     ],
     ErrorCode.TASK_NOT_FOUND: [
         "Verify the task ID is correct",
         "Check if the task has been created",
-        "Ensure you have access to the task",
+        "Ensure you have access to the task"
     ],
     ErrorCode.DATABASE_CONNECTION_ERROR: [
         "Check database connectivity",
         "Verify database configuration",
         "Check system resources",
-        "Contact system administrator",
+        "Contact system administrator"
     ],
     ErrorCode.WANDB_QUOTA_EXCEEDED: [
         "Check W&B storage usage",
         "Clean up old experiments",
         "Consider upgrading W&B plan",
-        "Contact W&B support",
-    ],
+        "Contact W&B support"
+    ]
 }

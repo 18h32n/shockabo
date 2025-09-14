@@ -188,13 +188,13 @@ def test_integration_readiness():
         # Test basic component initialization
         converter = TTTDataConverter()
         voter = HybridVoter()
-        TTTConfig()
+        config = TTTConfig()
 
         logger.info("✓ All components can be initialized")
 
         # Test workflow compatibility
         task = create_sample_arc_task()
-        converter.convert_arc_task(task)
+        ttt_task = converter.convert_arc_task(task)
 
         # Create mock predictions for voting
         predictions = [[[0, 4], [4, 0]], [[4, 0], [0, 4]]]
@@ -202,7 +202,7 @@ def test_integration_readiness():
             create_prediction_candidate(pred, confidence=0.8)
             for pred in predictions
         ]
-        voter.vote_all_predictions(candidates)
+        result = voter.vote_all_predictions(candidates)
 
         logger.info("✓ End-to-end workflow functional")
 

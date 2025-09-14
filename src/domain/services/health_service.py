@@ -32,7 +32,7 @@ class HealthService:
 
     def __init__(self, config: HealthCheckConfig | None = None):
         """Initialize the health service.
-
+        
         Args:
             config: Health check configuration
         """
@@ -117,7 +117,7 @@ class HealthService:
 
     async def perform_basic_health_check(self) -> SystemHealthSummary:
         """Perform basic health check for /health endpoint.
-
+        
         Returns:
             Basic system health summary
         """
@@ -172,7 +172,7 @@ class HealthService:
 
     async def perform_detailed_health_check(self) -> SystemHealthSummary:
         """Perform detailed health check for /health/detailed endpoint.
-
+        
         Returns:
             Detailed system health summary with all components and metrics
         """
@@ -229,7 +229,7 @@ class HealthService:
 
     async def perform_readiness_check(self) -> bool:
         """Perform readiness check for Kubernetes readiness probe.
-
+        
         Returns:
             True if system is ready to serve requests
         """
@@ -252,7 +252,7 @@ class HealthService:
 
     async def perform_liveness_check(self) -> bool:
         """Perform liveness check for Kubernetes liveness probe.
-
+        
         Returns:
             True if system is alive (basic functionality working)
         """
@@ -278,11 +278,11 @@ class HealthService:
 
     async def _run_health_check(self, name: str, check_info: dict[str, Any]) -> HealthCheckResult:
         """Run a single health check with timeout and error handling.
-
+        
         Args:
             name: Name of the health check
             check_info: Health check information from registry
-
+            
         Returns:
             Health check result
         """
@@ -378,7 +378,7 @@ class HealthService:
             cache.set(test_key, "test_value")
 
             # Test get operation
-            cache.get(test_key)
+            value = cache.get(test_key)
 
             # Clean up test key
             cache.delete(test_key)
@@ -709,7 +709,7 @@ _health_service: HealthService | None = None
 
 def get_health_service() -> HealthService:
     """Get the global health service instance.
-
+    
     Returns:
         HealthService instance
     """
