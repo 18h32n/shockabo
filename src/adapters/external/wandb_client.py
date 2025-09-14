@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any
 
 import structlog
 
@@ -39,16 +39,16 @@ logger = structlog.get_logger(__name__)
 @dataclass
 class BatchLogEntry:
     """Entry in the batch logging queue."""
-    
+
     entry_type: str  # 'evaluation', 'resource', 'summary'
-    data: Dict[str, Any]
+    data: dict[str, Any]
     timestamp: datetime = field(default_factory=datetime.now)
 
 
 class BatchProcessor:
     """Async batch processor for W&B logging operations."""
-    
-    def __init__(self, 
+
+    def __init__(self,
                  batch_size: int = 10,
                  flush_interval: float = 5.0,
                  max_queue_size: int = 1000):
@@ -62,51 +62,51 @@ class BatchProcessor:
         self.batch_size = batch_size
         self.flush_interval = flush_interval
         self.max_queue_size = max_queue_size
-        
+
         self.queue: deque[BatchLogEntry] = deque()
-        self.processing_task: Optional[asyncio.Task] = None
+        self.processing_task: asyncio.Task | None = None
         self.is_running = False
-        
+
         # Performance metrics
         self.batches_processed = 0
         self.entries_processed = 0
         self.failures = 0
         self.last_flush_time = datetime.now()
-        
+
         self.logger = structlog.get_logger(__name__).bind(component="batch_processor")
-    
+
     async def start(self):
         """Start the batch processing task."""
         if self.is_running:
             return
-            
+
         self.is_running = True
         self.processing_task = asyncio.create_task(self._process_queue())
-        self.logger.info("batch_processor_started", 
+        self.logger.info("batch_processor_started",
                         batch_size=self.batch_size,
                         flush_interval=self.flush_interval)
-    
+
     async def stop(self):
         """Stop the batch processor and flush remaining entries."""
         self.is_running = False
-        
+
         if self.processing_task:
             self.processing_task.cancel()
             try:
                 await self.processing_task
             except asyncio.CancelledError:
                 pass
-        
+
         # Flush remaining entries
         if self.queue:
             await self._flush_batch(list(self.queue))
             self.queue.clear()
-        
+
         self.logger.info("batch_processor_stopped",
                         batches_processed=self.batches_processed,
                         entries_processed=self.entries_processed)
-    
-    def add_entry(self, entry_type: str, data: Dict[str, Any]) -> bool:
+
+    def add_entry(self, entry_type: str, data: dict[str, Any]) -> bool:
         """Add an entry to the batch queue.
         
         Args:
@@ -117,57 +117,57 @@ class BatchProcessor:
             True if added successfully
         """
         if len(self.queue) >= self.max_queue_size:
-            self.logger.warning("batch_queue_full", 
+            self.logger.warning("batch_queue_full",
                               queue_size=len(self.queue),
                               dropping_entry=True)
             # Force flush to make room
             asyncio.create_task(self._flush_current_batch())
             return False
-        
+
         entry = BatchLogEntry(entry_type=entry_type, data=data)
         self.queue.append(entry)
-        
+
         # Force flush if batch size reached
         if len(self.queue) >= self.batch_size:
             asyncio.create_task(self._flush_current_batch())
-        
+
         return True
-    
+
     async def _process_queue(self):
         """Main processing loop."""
         while self.is_running:
             try:
                 # Check if it's time to flush
                 time_since_flush = (datetime.now() - self.last_flush_time).total_seconds()
-                
-                if (len(self.queue) >= self.batch_size or 
+
+                if (len(self.queue) >= self.batch_size or
                     (len(self.queue) > 0 and time_since_flush >= self.flush_interval)):
                     await self._flush_current_batch()
-                
+
                 # Sleep briefly to avoid busy waiting
                 await asyncio.sleep(0.1)
-                
+
             except Exception as e:
                 self.logger.error("batch_processing_error", error=str(e), exc_info=True)
                 await asyncio.sleep(1)  # Back off on errors
-    
+
     async def _flush_current_batch(self):
         """Flush the current batch of entries."""
         if not self.queue:
             return
-        
+
         # Extract batch entries
         batch_entries = []
         batch_size = min(len(self.queue), self.batch_size)
-        
+
         for _ in range(batch_size):
             if self.queue:
                 batch_entries.append(self.queue.popleft())
-        
+
         if batch_entries:
             await self._flush_batch(batch_entries)
-    
-    async def _flush_batch(self, entries: List[BatchLogEntry]):
+
+    async def _flush_batch(self, entries: list[BatchLogEntry]):
         """Flush a batch of entries to W&B.
         
         Args:
@@ -175,39 +175,39 @@ class BatchProcessor:
         """
         if not entries:
             return
-        
+
         start_time = datetime.now()
-        
+
         try:
             # Group entries by type for efficient processing
             grouped_entries = defaultdict(list)
             for entry in entries:
                 grouped_entries[entry.entry_type].append(entry.data)
-            
+
             # Process each group
             for entry_type, data_list in grouped_entries.items():
                 await self._process_entry_group(entry_type, data_list)
-            
+
             # Update metrics
             self.batches_processed += 1
             self.entries_processed += len(entries)
             self.last_flush_time = datetime.now()
-            
+
             processing_time = (self.last_flush_time - start_time).total_seconds()
-            
+
             self.logger.info("batch_flushed",
                            entries_count=len(entries),
                            processing_time_ms=processing_time * 1000,
                            entry_types=list(grouped_entries.keys()))
-        
+
         except Exception as e:
             self.failures += 1
-            self.logger.error("batch_flush_failed", 
+            self.logger.error("batch_flush_failed",
                             entries_count=len(entries),
                             error=str(e),
                             exc_info=True)
-    
-    async def _process_entry_group(self, entry_type: str, data_list: List[Dict[str, Any]]):
+
+    async def _process_entry_group(self, entry_type: str, data_list: list[dict[str, Any]]):
         """Process a group of entries of the same type.
         
         Args:
@@ -216,7 +216,7 @@ class BatchProcessor:
         """
         if not WANDB_AVAILABLE or not wandb.run:
             return
-        
+
         try:
             if entry_type == "evaluation":
                 # Batch evaluation results
@@ -226,28 +226,28 @@ class BatchProcessor:
                         if key not in combined_metrics:
                             combined_metrics[key] = []
                         combined_metrics[key].append(value)
-                
+
                 # Log combined metrics
                 wandb.log(combined_metrics)
-                
+
             elif entry_type == "resource":
                 # Batch resource usage
                 for data in data_list:
                     wandb.log(data)
-                    
+
             elif entry_type == "summary":
                 # Update summary (last one wins)
                 for data in data_list:
                     wandb.run.summary.update(data)
-            
+
         except Exception as e:
             self.logger.error("entry_group_processing_failed",
                             entry_type=entry_type,
                             count=len(data_list),
                             error=str(e))
             raise
-    
-    def get_statistics(self) -> Dict[str, Any]:
+
+    def get_statistics(self) -> dict[str, Any]:
         """Get batch processing statistics.
         
         Returns:
@@ -269,7 +269,7 @@ class BatchProcessor:
 
 class BatchOperationType(Enum):
     """Types of batch operations supported by the W&B client."""
-    
+
     EVALUATION_RESULT = "evaluation_result"
     RESOURCE_USAGE = "resource_usage"
     EXPERIMENT_SUMMARY = "experiment_summary"
@@ -279,7 +279,7 @@ class BatchOperationType(Enum):
 @dataclass
 class BatchOperation:
     """Represents a single operation to be batched."""
-    
+
     operation_type: BatchOperationType
     data: Any
     timestamp: datetime = field(default_factory=datetime.now)
@@ -290,7 +290,7 @@ class BatchOperation:
 @dataclass
 class BatchMetrics:
     """Metrics for tracking batch processing performance."""
-    
+
     total_operations: int = 0
     successful_operations: int = 0
     failed_operations: int = 0
@@ -301,8 +301,8 @@ class BatchMetrics:
     partial_failures: int = 0
     retry_operations: int = 0
     last_updated: datetime = field(default_factory=datetime.now)
-    
-    def update_batch_stats(self, batch_size: int, flush_time_ms: float, 
+
+    def update_batch_stats(self, batch_size: int, flush_time_ms: float,
                           successful: int, failed: int, partial_failure: bool = False):
         """Update batch processing statistics."""
         self.total_batches += 1
@@ -310,15 +310,15 @@ class BatchMetrics:
         self.successful_operations += successful
         self.failed_operations += failed
         self.total_flush_time_ms += flush_time_ms
-        
+
         if partial_failure:
             self.partial_failures += 1
-        
+
         self.average_batch_size = self.total_operations / self.total_batches
         self.average_flush_time_ms = self.total_flush_time_ms / self.total_batches
         self.last_updated = datetime.now()
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert metrics to dictionary for logging."""
         return {
             "total_operations": self.total_operations,
@@ -340,13 +340,13 @@ class WandBConfig:
         """Initialize W&B configuration from secure storage or environment variables."""
         # Get credential manager
         self._cred_manager = get_credential_manager()
-        
+
         # Try to get API key from secure storage first, then environment
         self.api_key = self._cred_manager.get_credential_with_fallback(
-            'WANDB_API_KEY', 
+            'WANDB_API_KEY',
             env_var='WANDB_API_KEY'
         )
-        
+
         self.project_name = os.environ.get("WANDB_PROJECT", "arc-prize-2025")
         self.entity = os.environ.get("WANDB_ENTITY")  # Optional: organization/team name
         self.base_dir = os.environ.get("WANDB_DIR", "./wandb")
@@ -518,12 +518,12 @@ class WandBClient:
 
         # Batch processing
         self.enable_batching = enable_batching
-        self.batch_processor: Optional[BatchProcessor] = None
+        self.batch_processor: BatchProcessor | None = None
         if enable_batching:
             batch_size = int(os.environ.get("WANDB_BATCH_SIZE", "10"))
             flush_interval = float(os.environ.get("WANDB_FLUSH_INTERVAL", "5.0"))
             max_queue_size = int(os.environ.get("WANDB_MAX_QUEUE_SIZE", "1000"))
-            
+
             self.batch_processor = BatchProcessor(
                 batch_size=batch_size,
                 flush_interval=flush_interval,
@@ -566,7 +566,7 @@ class WandBClient:
                 else:
                     # Try login without key - may prompt or use existing auth
                     wandb.login()
-                    
+
                 self._initialized = True
                 self.logger.info(
                     "wandb_initialized",
@@ -997,7 +997,7 @@ class BatchedWandBClient(WandBClient):
         self._retry_queue: deque[BatchOperation] = deque()
         self._batch_metrics = BatchMetrics()
         self._batch_lock = asyncio.Lock()
-        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_task: asyncio.Task | None = None
         self._running = False
 
         # Operation handlers for different batch types
@@ -1088,7 +1088,7 @@ class BatchedWandBClient(WandBClient):
             # Group operations by type
             operations_by_type = defaultdict(list)
             operations_to_process = list(self._batch_queue)
-            
+
             # Only process a batch if we have enough operations or are forcing
             if not force and len(operations_to_process) < self.batch_size:
                 return
@@ -1103,7 +1103,7 @@ class BatchedWandBClient(WandBClient):
                 await self._process_operations_batch(op_type, operations)
 
     async def _process_operations_batch(
-        self, operation_type: BatchOperationType, operations: List[BatchOperation]
+        self, operation_type: BatchOperationType, operations: list[BatchOperation]
     ) -> None:
         """Process a batch of operations of the same type."""
         if not operations or not self._current_run or self.config.mode == "disabled":
@@ -1123,7 +1123,7 @@ class BatchedWandBClient(WandBClient):
 
             # Execute the batch operation
             success_results = await handler(operations)
-            
+
             # Count successes and failures
             for i, success in enumerate(success_results):
                 if success:
@@ -1181,17 +1181,17 @@ class BatchedWandBClient(WandBClient):
             await asyncio.sleep(self.retry_delay_seconds)  # Delay before retry
             await self._process_operations_batch(op_type, operations)
 
-    async def _process_evaluation_results_batch(self, operations: List[BatchOperation]) -> List[bool]:
+    async def _process_evaluation_results_batch(self, operations: list[BatchOperation]) -> list[bool]:
         """Process a batch of evaluation result operations."""
         results = []
-        
+
         try:
             # Aggregate all metrics for batch logging
             batch_metrics = {}
-            
+
             for i, operation in enumerate(operations):
                 result: EvaluationResult = operation.data
-                
+
                 try:
                     # Create metrics for this result with batch prefix
                     prefix = f"batch_{i}_"
@@ -1218,7 +1218,7 @@ class BatchedWandBClient(WandBClient):
 
                     batch_metrics.update(metrics)
                     results.append(True)
-                    
+
                 except Exception as e:
                     self.logger.error(
                         "batch_evaluation_result_error",
@@ -1226,27 +1226,27 @@ class BatchedWandBClient(WandBClient):
                         error=str(e),
                     )
                     results.append(False)
-            
+
             # Log all metrics in a single W&B call
             if batch_metrics:
                 wandb.log(batch_metrics)
-                
+
         except Exception as e:
             self.logger.error("batch_evaluation_results_error", error=str(e), exc_info=True)
             results = [False] * len(operations)
-            
+
         return results
 
-    async def _process_resource_usage_batch(self, operations: List[BatchOperation]) -> List[bool]:
+    async def _process_resource_usage_batch(self, operations: list[BatchOperation]) -> list[bool]:
         """Process a batch of resource usage operations."""
         results = []
-        
+
         try:
             batch_metrics = {}
-            
+
             for i, operation in enumerate(operations):
                 usage: ResourceUsage = operation.data
-                
+
                 try:
                     prefix = f"batch_{i}_"
                     metrics = {
@@ -1266,7 +1266,7 @@ class BatchedWandBClient(WandBClient):
 
                     batch_metrics.update(metrics)
                     results.append(True)
-                    
+
                 except Exception as e:
                     self.logger.error(
                         "batch_resource_usage_error",
@@ -1274,23 +1274,23 @@ class BatchedWandBClient(WandBClient):
                         error=str(e),
                     )
                     results.append(False)
-                    
+
             # Log all metrics in a single W&B call
             if batch_metrics:
                 wandb.log(batch_metrics)
-                
+
         except Exception as e:
             self.logger.error("batch_resource_usage_error", error=str(e), exc_info=True)
             results = [False] * len(operations)
-            
+
         return results
 
-    async def _process_experiment_summary_batch(self, operations: List[BatchOperation]) -> List[bool]:
+    async def _process_experiment_summary_batch(self, operations: list[BatchOperation]) -> list[bool]:
         """Process a batch of experiment summary operations."""
         # Experiment summaries are typically singular per experiment,
         # so we process them individually but within the same batch
         results = []
-        
+
         for operation in operations:
             try:
                 metrics: ExperimentMetrics = operation.data
@@ -1299,19 +1299,19 @@ class BatchedWandBClient(WandBClient):
             except Exception as e:
                 self.logger.error("batch_experiment_summary_error", error=str(e))
                 results.append(False)
-                
+
         return results
 
-    async def _process_custom_metrics_batch(self, operations: List[BatchOperation]) -> List[bool]:
+    async def _process_custom_metrics_batch(self, operations: list[BatchOperation]) -> list[bool]:
         """Process a batch of custom metrics operations."""
         results = []
-        
+
         try:
             batch_metrics = {}
-            
+
             for i, operation in enumerate(operations):
-                custom_metrics: Dict[str, Any] = operation.data
-                
+                custom_metrics: dict[str, Any] = operation.data
+
                 try:
                     # Add batch prefix to avoid key conflicts
                     prefixed_metrics = {f"batch_{i}_{k}": v for k, v in custom_metrics.items()}
@@ -1320,15 +1320,15 @@ class BatchedWandBClient(WandBClient):
                 except Exception as e:
                     self.logger.error("batch_custom_metrics_error", error=str(e))
                     results.append(False)
-                    
+
             # Log all custom metrics in a single W&B call
             if batch_metrics:
                 wandb.log(batch_metrics)
-                
+
         except Exception as e:
             self.logger.error("batch_custom_metrics_error", error=str(e), exc_info=True)
             results = [False] * len(operations)
-            
+
         return results
 
     # Async batch methods
@@ -1368,7 +1368,7 @@ class BatchedWandBClient(WandBClient):
         await self._add_to_batch(operation)
         return True  # Queued successfully
 
-    async def log_custom_metrics_async(self, metrics: Dict[str, Any]) -> bool:
+    async def log_custom_metrics_async(self, metrics: dict[str, Any]) -> bool:
         """Log custom metrics using batching."""
         if not self.enable_batching:
             if self._current_run and self.config.mode != "disabled":
@@ -1387,11 +1387,11 @@ class BatchedWandBClient(WandBClient):
         await self._add_to_batch(operation)
         return True  # Queued successfully
 
-    def get_batch_metrics(self) -> Dict[str, Any]:
+    def get_batch_metrics(self) -> dict[str, Any]:
         """Get current batch processing metrics."""
         return self._batch_metrics.to_dict()
 
-    def get_queue_sizes(self) -> Dict[str, int]:
+    def get_queue_sizes(self) -> dict[str, int]:
         """Get current queue sizes for monitoring."""
         return {
             "batch_queue": len(self._batch_queue),

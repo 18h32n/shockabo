@@ -1,6 +1,5 @@
 """Health check models and data structures for system monitoring."""
 
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -35,7 +34,7 @@ class HealthCheckResult:
     details: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
     last_checked: datetime = field(default_factory=datetime.now)
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -64,7 +63,7 @@ class PerformanceMetrics:
     error_rate_percent: float = 0.0
     average_response_time_ms: float = 0.0
     uptime_seconds: float = 0.0
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -83,7 +82,7 @@ class PerformanceMetrics:
         }
 
 
-@dataclass 
+@dataclass
 class DatabaseHealth:
     """Database-specific health information."""
     connection_pool_size: int = 0
@@ -93,7 +92,7 @@ class DatabaseHealth:
     total_queries: int = 0
     failed_queries: int = 0
     database_size_mb: float = 0.0
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -118,7 +117,7 @@ class CacheHealth:
     max_size_mb: float = 0.0
     usage_percent: float = 0.0
     evictions: int = 0
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -144,7 +143,7 @@ class ExternalServiceHealth:
     success_rate_percent: float = 0.0
     average_response_time_ms: float = 0.0
     rate_limit_remaining: int | None = None
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -170,7 +169,7 @@ class SystemHealthSummary:
     components: list[HealthCheckResult] = field(default_factory=list)
     performance_metrics: PerformanceMetrics = field(default_factory=PerformanceMetrics)
     detailed_health: dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -183,56 +182,56 @@ class SystemHealthSummary:
             "performance_metrics": self.performance_metrics.to_dict(),
             "detailed_health": self.detailed_health
         }
-    
+
     def add_component_result(self, result: HealthCheckResult) -> None:
         """Add a component health check result."""
         self.components.append(result)
-    
+
     def get_component_by_name(self, name: str) -> HealthCheckResult | None:
         """Get component health result by name."""
         for component in self.components:
             if component.component_name == name:
                 return component
         return None
-    
+
     def get_components_by_type(self, component_type: ComponentType) -> list[HealthCheckResult]:
         """Get all components of a specific type."""
         return [comp for comp in self.components if comp.component_type == component_type]
-    
+
     def calculate_overall_status(self) -> HealthStatus:
         """Calculate overall status based on component statuses."""
         if not self.components:
             return HealthStatus.UNKNOWN
-        
+
         # Count status types
         status_counts = {}
         for component in self.components:
             status = component.status
             status_counts[status] = status_counts.get(status, 0) + 1
-        
+
         # Determine overall status
         total_components = len(self.components)
         unhealthy_count = status_counts.get(HealthStatus.UNHEALTHY, 0)
         degraded_count = status_counts.get(HealthStatus.DEGRADED, 0)
         healthy_count = status_counts.get(HealthStatus.HEALTHY, 0)
         unknown_count = status_counts.get(HealthStatus.UNKNOWN, 0)
-        
+
         # If any component is unhealthy, system is unhealthy
         if unhealthy_count > 0:
             return HealthStatus.UNHEALTHY
-        
+
         # If more than 50% are degraded or unknown, system is degraded
         if (degraded_count + unknown_count) > (total_components * 0.5):
             return HealthStatus.DEGRADED
-        
+
         # If any component is degraded, system is degraded
         if degraded_count > 0:
             return HealthStatus.DEGRADED
-        
+
         # If all components are healthy
         if healthy_count == total_components:
             return HealthStatus.HEALTHY
-        
+
         # Default to degraded if we can't determine
         return HealthStatus.DEGRADED
 
@@ -249,7 +248,7 @@ class HealthCheckConfig:
     components_to_check: list[str] = field(default_factory=lambda: [
         "database", "cache", "wandb", "storage", "memory", "cpu"
     ])
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -265,11 +264,11 @@ class HealthCheckConfig:
 
 class HealthCheckRegistry:
     """Registry for health check functions."""
-    
+
     def __init__(self):
         """Initialize the registry."""
         self._checks = {}
-        
+
     def register(self, name: str, check_function, component_type: ComponentType):
         """Register a health check function.
         
@@ -282,20 +281,20 @@ class HealthCheckRegistry:
             'function': check_function,
             'component_type': component_type
         }
-    
+
     def get_check(self, name: str):
         """Get a registered health check function."""
         return self._checks.get(name)
-    
+
     def get_all_checks(self) -> dict[str, Any]:
         """Get all registered health checks."""
         return self._checks.copy()
-    
+
     def get_checks_by_type(self, component_type: ComponentType) -> dict[str, Any]:
         """Get all health checks of a specific type."""
         return {
-            name: check_info 
-            for name, check_info in self._checks.items() 
+            name: check_info
+            for name, check_info in self._checks.items()
             if check_info['component_type'] == component_type
         }
 

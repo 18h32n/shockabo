@@ -18,8 +18,8 @@ from transformers import (
 )
 
 from src.infrastructure.config import get_config
-from src.utils.memory_manager import MemoryManager, AdaptiveBatchSizer
-from src.utils.auth_config import setup_hf_auth, get_model_access_info, suggest_public_model
+from src.utils.auth_config import get_model_access_info, setup_hf_auth, suggest_public_model
+from src.utils.memory_manager import MemoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +32,16 @@ class TTTModelService:
         self.config = config or get_config()
         self.model = None
         self.tokenizer = None
-        
+
         # Setup device and paths
         self.device = self._setup_device()
         self.model_path = Path(self.config.get("model", {}).get("cache_dir", "data/models"))
         self.model_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Memory management settings
         self.max_memory_gb = self.config.get("resources", {}).get("max_memory_gb", 10)
         self.memory_monitor_enabled = True
-        
+
         # Initialize memory manager
         self.memory_manager = MemoryManager(
             device=self.device,
@@ -87,12 +87,12 @@ class TTTModelService:
             return self.model, self.tokenizer
 
         model_name = model_name or self.config.get("model", {}).get("name", "meta-llama/Llama-3.2-1B")
-        
+
         # Set up HuggingFace authentication
         auth_setup = setup_hf_auth()
         if auth_setup:
             logger.info("HuggingFace authentication configured")
-        
+
         # Check model access
         access_info = get_model_access_info(model_name)
         if not access_info["can_access"]:
@@ -100,13 +100,13 @@ class TTTModelService:
             suggested_model = suggest_public_model(model_name)
             logger.info(f"Using public model alternative: {suggested_model}")
             model_name = suggested_model
-        
+
         logger.info(f"Loading model: {model_name}")
 
         # Monitor initial memory
         initial_memory = self._get_memory_usage()
         logger.info(f"Initial memory usage: {initial_memory:.2f}GB")
-        
+
         # Check memory pressure before loading
         pressure = self.memory_manager.check_memory_pressure()
         if pressure == "critical":
@@ -295,18 +295,18 @@ class TTTModelService:
     def _handle_model_oom(self) -> None:
         """Handle OOM during model loading."""
         logger.error("OOM during model loading - attempting recovery")
-        
+
         # Clear any partial model data
         if hasattr(self, 'model') and self.model is not None:
             del self.model
             self.model = None
-        
+
         # Force memory cleanup
         self.memory_manager.clear_cache()
-        
+
         # Log memory state
         logger.info(self.memory_manager.get_memory_summary())
-    
+
     def cleanup(self) -> None:
         """Clean up resources and free memory."""
         logger.info("Cleaning up TTT service resources")

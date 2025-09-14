@@ -140,7 +140,7 @@ def grid_to_string(grid: list[list[int]]) -> str:
     """Convert a grid to a string representation for LLM processing."""
     if not grid:
         return "Empty grid"
-    
+
     rows = []
     for row in grid:
         rows.append(' '.join(str(cell) for cell in row))
@@ -151,7 +151,7 @@ def string_to_grid(grid_str: str) -> list[list[int]]:
     """Convert a string representation back to a grid."""
     if not grid_str or grid_str == "Empty grid":
         return []
-    
+
     rows = grid_str.strip().split('\n')
     grid = []
     for row in rows:
@@ -161,33 +161,33 @@ def string_to_grid(grid_str: str) -> list[list[int]]:
 
 class MemoryProfiler:
     """Memory profiling utilities for grid operations."""
-    
+
     def __init__(self):
         """Initialize memory profiler."""
         self.process = psutil.Process()
         self.initial_memory = self.get_current_memory()
-    
+
     def get_current_memory(self) -> float:
         """Get current memory usage in MB."""
         return self.process.memory_info().rss / 1024 / 1024
-    
+
     def get_memory_increase(self) -> float:
         """Get memory increase since initialization."""
         return self.get_current_memory() - self.initial_memory
-    
+
     def profile_operation(self, func, *args, **kwargs):
         """Profile memory usage of an operation."""
         start_memory = self.get_current_memory()
         result = func(*args, **kwargs)
         end_memory = self.get_current_memory()
-        
+
         return {
             "result": result,
             "start_memory_mb": start_memory,
             "end_memory_mb": end_memory,
             "memory_increase_mb": end_memory - start_memory
         }
-    
+
     @staticmethod
     def get_current_memory_usage() -> dict[str, float]:
         """Get current memory usage statistics."""
@@ -197,7 +197,7 @@ class MemoryProfiler:
             "rss_mb": memory_info.rss / 1024 / 1024,
             "vms_mb": memory_info.vms / 1024 / 1024
         }
-    
+
     @staticmethod
     def check_memory_constraints(current_mb: float, estimated_mb: float, limit_mb: float) -> dict[str, Any]:
         """Check if memory usage is within constraints."""
@@ -210,13 +210,13 @@ class MemoryProfiler:
             "limit_mb": limit_mb,
             "usage_percentage": (total_estimated / limit_mb) * 100 if limit_mb > 0 else 0
         }
-    
+
     @staticmethod
     def suggest_optimization(constraint_check: dict[str, Any]) -> list[str]:
         """Suggest optimizations based on memory constraints."""
         suggestions = []
         usage_pct = constraint_check.get("usage_percentage", 0)
-        
+
         if usage_pct > 90:
             suggestions.append("Critical: Reduce batch size or enable memory optimization")
         elif usage_pct > 75:
@@ -225,13 +225,13 @@ class MemoryProfiler:
             suggestions.append("Moderate usage - monitor for spikes")
         else:
             suggestions.append("Memory usage is optimal")
-        
+
         return suggestions
 
 
 class MemoryEfficientTaskStorage:
     """Memory-efficient storage for ARC tasks using compression."""
-    
+
     def __init__(self, use_sparse: bool = True):
         """Initialize memory-efficient storage."""
         self.use_sparse = use_sparse
@@ -242,18 +242,18 @@ class MemoryEfficientTaskStorage:
             "compressed_size_mb": 0,
             "compression_rate": 0.0
         }
-    
+
     def store_task(self, task: "ARCTask") -> None:
         """Store a task with compression."""
         self.tasks[task.task_id] = task
         self.compression_stats["total_tasks_stored"] += 1
         # Placeholder compression logic
         self.compression_stats["compression_rate"] = 0.6  # 60% compression
-    
+
     def load_task(self, task_id: str) -> Any:
         """Load a task from storage."""
         return self.tasks.get(task_id)
-    
+
     def get_memory_statistics(self) -> dict[str, Any]:
         """Get memory statistics for stored tasks."""
         return self.compression_stats.copy()

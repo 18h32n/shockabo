@@ -10,7 +10,7 @@ import logging
 import os
 import time
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -34,8 +34,8 @@ class InferenceProfile:
     tokens_per_second: float
     memory_usage_mb: float
     success: bool
-    error_message: Optional[str] = None
-    optimization_config: Optional[Dict[str, Any]] = None
+    error_message: str | None = None
+    optimization_config: dict[str, Any] | None = None
     meets_time_requirement: bool = False
 
 
@@ -50,7 +50,7 @@ class ARCTaskSample:
 
 class InferenceOptimizer:
     """Inference optimization and benchmarking for 8B models."""
-    
+
     def __init__(self, time_limit_seconds: float = 432):  # 7.2 minutes
         """
         Initialize inference optimizer.
@@ -59,9 +59,9 @@ class InferenceOptimizer:
             time_limit_seconds: Maximum allowed inference time
         """
         self.time_limit_seconds = time_limit_seconds
-        self.profiles: List[InferenceProfile] = []
-        
-    def get_arc_task_samples(self) -> List[ARCTaskSample]:
+        self.profiles: list[InferenceProfile] = []
+
+    def get_arc_task_samples(self) -> list[ARCTaskSample]:
         """Get representative ARC task samples for benchmarking."""
         return [
             ARCTaskSample(
@@ -142,8 +142,8 @@ Generate the solution with full reasoning:""",
                 complexity_level="complex"
             )
         ]
-    
-    def create_optimized_model_configs(self) -> List[Dict[str, Any]]:
+
+    def create_optimized_model_configs(self) -> list[dict[str, Any]]:
         """Create different optimization configurations to test."""
         return [
             {
@@ -207,39 +207,39 @@ Generate the solution with full reasoning:""",
                 "gradient_checkpointing": False,
             },
         ]
-    
-    def load_optimized_model(self, model_name: str, config: Dict[str, Any]) -> tuple[nn.Module, Any]:
+
+    def load_optimized_model(self, model_name: str, config: dict[str, Any]) -> tuple[nn.Module, Any]:
         """Load model with specified optimizations."""
         logger.info(f"Loading model with config: {config['name']}")
-        
+
         # Load tokenizer
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
             trust_remote_code=True,
             use_fast=True
         )
-        
+
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
-        
+
         # Prepare model loading arguments
         model_kwargs = {
             "trust_remote_code": True,
             "torch_dtype": torch.bfloat16,
             "device_map": "auto",
         }
-        
+
         # Add quantization if specified
         if config["quantization_config"]:
             model_kwargs["quantization_config"] = config["quantization_config"]
-        
+
         # Add flash attention if specified
         if config["flash_attention"] and torch.cuda.is_available():
             model_kwargs["attn_implementation"] = "flash_attention_2"
-        
+
         # Load model
         model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
-        
+
         # Apply torch.compile if specified
         if config["torch_compile"]:
             try:
@@ -247,53 +247,53 @@ Generate the solution with full reasoning:""",
                 logger.info("Applied torch.compile optimization")
             except Exception as e:
                 logger.warning(f"torch.compile failed: {e}")
-        
+
         # Enable gradient checkpointing if specified
         if config["gradient_checkpointing"] and hasattr(model, 'gradient_checkpointing_enable'):
             model.gradient_checkpointing_enable()
-        
+
         return model, tokenizer
-    
+
     def benchmark_inference(
         self,
         model: nn.Module,
         tokenizer: Any,
         task: ARCTaskSample,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         model_name: str
     ) -> InferenceProfile:
         """Benchmark inference for a single task."""
         logger.info(f"Benchmarking inference for task: {task.task_id}")
-        
+
         # Clear cache before inference
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.reset_peak_memory_stats()
-        
+
         gc.collect()
-        
+
         success = False
         error_message = None
         inference_time = 0
         tokens_generated = 0
         tokens_per_second = 0
         memory_usage_mb = 0
-        
+
         try:
             # Tokenize input
             inputs = tokenizer(
-                task.prompt, 
+                task.prompt,
                 return_tensors="pt",
                 truncation=True,
                 max_length=2048
             )
-            
+
             if torch.cuda.is_available():
                 inputs = {k: v.cuda() for k, v in inputs.items()}
-            
+
             # Benchmark inference
             start_time = time.time()
-            
+
             with torch.no_grad():
                 # Use optimized generation parameters
                 outputs = model.generate(
@@ -308,30 +308,30 @@ Generate the solution with full reasoning:""",
                     eos_token_id=tokenizer.eos_token_id,
                     use_cache=True,  # Enable KV caching
                 )
-            
+
             inference_time = time.time() - start_time
-            
+
             # Calculate tokens generated
             input_length = inputs["input_ids"].shape[1]
             total_length = outputs.shape[1]
             tokens_generated = total_length - input_length
             tokens_per_second = tokens_generated / inference_time if inference_time > 0 else 0
-            
+
             # Get memory usage
             if torch.cuda.is_available():
                 memory_usage_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
-            
+
             # Decode output for logging
             generated_text = tokenizer.decode(outputs[0][input_length:], skip_special_tokens=True)
             logger.info(f"Generated {tokens_generated} tokens in {inference_time:.2f}s ({tokens_per_second:.2f} tok/s)")
             logger.debug(f"Generated text preview: {generated_text[:200]}...")
-            
+
             success = True
-            
+
         except Exception as e:
             error_message = str(e)
             logger.error(f"Inference failed: {error_message}")
-        
+
         # Create profile
         profile = InferenceProfile(
             optimization_name=config["name"],
@@ -346,55 +346,55 @@ Generate the solution with full reasoning:""",
             optimization_config=config,
             meets_time_requirement=inference_time <= self.time_limit_seconds
         )
-        
+
         self.profiles.append(profile)
         return profile
-    
-    def run_comprehensive_benchmark(self, model_name: str = "microsoft/DialoGPT-large") -> List[InferenceProfile]:
+
+    def run_comprehensive_benchmark(self, model_name: str = "microsoft/DialoGPT-large") -> list[InferenceProfile]:
         """Run comprehensive inference benchmarking."""
         logger.info("Starting comprehensive inference benchmarking...")
-        
+
         tasks = self.get_arc_task_samples()
         configs = self.create_optimized_model_configs()
         results = []
-        
+
         for config in configs:
             logger.info(f"Testing optimization: {config['name']}")
-            
+
             try:
                 # Load model with current optimization
                 model, tokenizer = self.load_optimized_model(model_name, config)
-                
+
                 # Test on each task
                 for task in tasks:
                     profile = self.benchmark_inference(model, tokenizer, task, config, model_name)
                     results.append(profile)
-                    
+
                     # Log immediate results
                     self._log_inference_result(profile)
-                    
+
                     # Early stop if inference is too slow
                     if profile.inference_time_seconds > self.time_limit_seconds * 1.5:
                         logger.warning(f"Inference too slow ({profile.inference_time_seconds:.1f}s), skipping remaining tasks for this config")
                         break
-                
+
                 # Cleanup
                 del model, tokenizer
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                 gc.collect()
-                
+
             except Exception as e:
                 logger.error(f"Failed to test optimization {config['name']}: {e}")
                 continue
-        
+
         return results
-    
+
     def _log_inference_result(self, profile: InferenceProfile) -> None:
         """Log inference result summary."""
         status = "✓ SUCCESS" if profile.success else "✗ FAILED"
         time_status = "✓ WITHIN LIMIT" if profile.meets_time_requirement else "⚠ TOO SLOW"
-        
+
         logger.info("=" * 60)
         logger.info(f"Optimization: {profile.optimization_name}")
         logger.info(f"Task: {profile.task_prompt}")
@@ -404,25 +404,25 @@ Generate the solution with full reasoning:""",
         logger.info(f"Tokens Generated: {profile.tokens_generated}")
         logger.info(f"Tokens/Second: {profile.tokens_per_second:.2f}")
         logger.info(f"Memory Usage: {profile.memory_usage_mb:.1f}MB")
-        
+
         if profile.error_message:
             logger.info(f"Error: {profile.error_message}")
-        
+
         logger.info("=" * 60)
-    
-    def analyze_results(self) -> Dict[str, Any]:
+
+    def analyze_results(self) -> dict[str, Any]:
         """Analyze benchmarking results and generate recommendations."""
         if not self.profiles:
             return {"error": "No benchmark results available"}
-        
+
         successful_profiles = [p for p in self.profiles if p.success]
         within_time_profiles = [p for p in successful_profiles if p.meets_time_requirement]
-        
+
         # Find best configuration
         best_profile = None
         if within_time_profiles:
             best_profile = min(within_time_profiles, key=lambda p: p.inference_time_seconds)
-        
+
         # Analyze by optimization type
         optimization_analysis = {}
         for profile in successful_profiles:
@@ -436,7 +436,7 @@ Generate the solution with full reasoning:""",
                     "within_time_rate": 0
                 }
             optimization_analysis[opt_name]["profiles"].append(profile)
-        
+
         # Calculate statistics for each optimization
         for opt_name, data in optimization_analysis.items():
             profiles = data["profiles"]
@@ -444,7 +444,7 @@ Generate the solution with full reasoning:""",
             data["avg_throughput"] = sum(p.tokens_per_second for p in profiles) / len(profiles)
             data["success_rate"] = len([p for p in profiles if p.success]) / len(profiles)
             data["within_time_rate"] = len([p for p in profiles if p.meets_time_requirement]) / len(profiles)
-        
+
         return {
             "summary": {
                 "total_tests": len(self.profiles),
@@ -463,15 +463,15 @@ Generate the solution with full reasoning:""",
             },
             "all_profiles": [asdict(p) for p in self.profiles],
         }
-    
+
     def _generate_inference_recommendations(
-        self, 
-        optimization_analysis: Dict[str, Any], 
-        best_profile: Optional[InferenceProfile]
-    ) -> List[str]:
+        self,
+        optimization_analysis: dict[str, Any],
+        best_profile: InferenceProfile | None
+    ) -> list[str]:
         """Generate recommendations based on inference benchmarking."""
         recommendations = []
-        
+
         if not best_profile:
             recommendations.extend([
                 "CRITICAL: No optimization configuration meets 7.2-minute requirement",
@@ -488,18 +488,18 @@ Generate the solution with full reasoning:""",
                 "Monitor inference time in production",
                 "Implement timeout mechanisms for safety",
             ])
-        
+
         # Analyze best optimization strategies
         if optimization_analysis:
-            best_opt = min(optimization_analysis.items(), 
+            best_opt = min(optimization_analysis.items(),
                           key=lambda x: x[1]["avg_time"] if x[1]["success_rate"] > 0 else float('inf'))
-            
+
             recommendations.extend([
                 f"Best optimization strategy: {best_opt[0]}",
                 f"Average inference time: {best_opt[1]['avg_time']:.2f}s",
                 f"Average throughput: {best_opt[1]['avg_throughput']:.1f} tok/s",
             ])
-        
+
         # General recommendations
         recommendations.extend([
             "Implement KV cache optimization",
@@ -508,13 +508,13 @@ Generate the solution with full reasoning:""",
             "Create progressive timeout mechanisms",
             "Test on representative ARC tasks regularly",
         ])
-        
+
         return recommendations
-    
-    def generate_report(self, output_path: Optional[str] = None) -> Dict[str, Any]:
+
+    def generate_report(self, output_path: str | None = None) -> dict[str, Any]:
         """Generate comprehensive inference optimization report."""
         analysis = self.analyze_results()
-        
+
         report = {
             **analysis,
             "timestamp": time.time(),
@@ -524,14 +524,14 @@ Generate the solution with full reasoning:""",
                 "device": "cuda" if torch.cuda.is_available() else "cpu",
             }
         }
-        
+
         # Save report if path provided
         if output_path:
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             with open(output_path, 'w') as f:
                 json.dump(report, f, indent=2)
             logger.info(f"Inference optimization report saved to: {output_path}")
-        
+
         return report
 
 
@@ -541,20 +541,20 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     # Initialize optimizer
     optimizer = InferenceOptimizer(time_limit_seconds=432)  # 7.2 minutes
-    
+
     # Run benchmarks (using smaller model for testing)
     logger.info("Starting inference optimization benchmarking...")
     model_name = "microsoft/DialoGPT-large"  # Use this for testing instead of 8B model
-    
+
     results = optimizer.run_comprehensive_benchmark(model_name)
-    
+
     # Generate report
     report_path = "docs/qa/assessments/inference_optimization_poc_results.json"
     report = optimizer.generate_report(report_path)
-    
+
     # Print summary
     print("\n" + "="*80)
     print("INFERENCE OPTIMIZATION POC RESULTS")
@@ -564,21 +564,21 @@ def main():
     print(f"Within Time Limit: {report['summary']['within_time_limit']}")
     print(f"Inference Feasible: {'YES' if report['summary']['inference_feasible'] else 'NO'}")
     print(f"Risk PERF-002 Status: {report['risk_assessment']['perf_002_status']}")
-    
+
     if report['best_configuration']:
         best = report['best_configuration']
-        print(f"\nBest Configuration:")
+        print("\nBest Configuration:")
         print(f"  Optimization: {best['optimization_name']}")
         print(f"  Inference Time: {best['inference_time_seconds']:.2f}s")
         print(f"  Throughput: {best['tokens_per_second']:.1f} tok/s")
-    
-    print(f"\nTop Recommendations:")
+
+    print("\nTop Recommendations:")
     for i, rec in enumerate(report['recommendations'][:5], 1):
         print(f"  {i}. {rec}")
-    
+
     print(f"\nFull report saved to: {report_path}")
     print("="*80)
-    
+
     return report
 
 

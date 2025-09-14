@@ -4,12 +4,10 @@ This module provides comprehensive health check endpoints for monitoring
 system status, component health, and performance metrics.
 """
 
-import asyncio
 from datetime import datetime
-from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from src.domain.health_models import HealthStatus
@@ -41,10 +39,10 @@ async def basic_health_check():
     try:
         # Perform basic health check
         health_summary = await health_service.perform_basic_health_check()
-        
+
         # Determine HTTP status code based on overall health
         http_status = _get_http_status_from_health(health_summary.overall_status)
-        
+
         response_data = {
             "status": health_summary.overall_status.value,
             "timestamp": health_summary.timestamp.isoformat(),
@@ -59,22 +57,22 @@ async def basic_health_check():
                 for comp in health_summary.components
             }
         }
-        
+
         logger.info(
             "basic_health_check_completed",
             status=health_summary.overall_status.value,
             components_count=len(health_summary.components),
             http_status=http_status
         )
-        
+
         return JSONResponse(
             status_code=http_status,
             content=response_data
         )
-        
+
     except Exception as e:
         logger.error("basic_health_check_failed", error=str(e), exc_info=True)
-        
+
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
@@ -103,27 +101,27 @@ async def detailed_health_check():
     try:
         # Perform detailed health check
         health_summary = await health_service.perform_detailed_health_check()
-        
+
         # Determine HTTP status code based on overall health
         http_status = _get_http_status_from_health(health_summary.overall_status)
-        
+
         response_data = health_summary.to_dict()
-        
+
         logger.info(
             "detailed_health_check_completed",
             status=health_summary.overall_status.value,
             components_count=len(health_summary.components),
             http_status=http_status
         )
-        
+
         return JSONResponse(
             status_code=http_status,
             content=response_data
         )
-        
+
     except Exception as e:
         logger.error("detailed_health_check_failed", error=str(e), exc_info=True)
-        
+
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
@@ -154,7 +152,7 @@ async def readiness_probe():
     """
     try:
         is_ready = await health_service.perform_readiness_check()
-        
+
         if is_ready:
             logger.debug("readiness_check_passed")
             return PlainTextResponse(
@@ -167,7 +165,7 @@ async def readiness_probe():
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 content="Not Ready"
             )
-            
+
     except Exception as e:
         logger.error("readiness_probe_error", error=str(e), exc_info=True)
         return PlainTextResponse(
@@ -192,7 +190,7 @@ async def liveness_probe():
     """
     try:
         is_alive = await health_service.perform_liveness_check()
-        
+
         if is_alive:
             logger.debug("liveness_check_passed")
             return PlainTextResponse(
@@ -205,7 +203,7 @@ async def liveness_probe():
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 content="Not Alive"
             )
-            
+
     except Exception as e:
         logger.error("liveness_probe_error", error=str(e), exc_info=True)
         return PlainTextResponse(
@@ -228,10 +226,10 @@ async def startup_probe():
     try:
         # For this implementation, startup is considered complete if basic health check passes
         health_summary = await health_service.perform_basic_health_check()
-        
+
         # Consider startup complete if system is at least not unhealthy
         is_started = health_summary.overall_status != HealthStatus.UNHEALTHY
-        
+
         if is_started:
             logger.debug("startup_check_passed", status=health_summary.overall_status.value)
             return PlainTextResponse(
@@ -244,7 +242,7 @@ async def startup_probe():
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 content="Starting"
             )
-            
+
     except Exception as e:
         logger.error("startup_probe_error", error=str(e), exc_info=True)
         return PlainTextResponse(
@@ -271,7 +269,7 @@ async def performance_metrics():
     try:
         # Get detailed health check for metrics
         health_summary = await health_service.perform_detailed_health_check()
-        
+
         metrics_data = {
             "timestamp": datetime.now().isoformat(),
             "performance_metrics": health_summary.performance_metrics.to_dict(),
@@ -285,17 +283,17 @@ async def performance_metrics():
                 for comp in health_summary.components
             }
         }
-        
+
         logger.info("performance_metrics_retrieved")
-        
+
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=metrics_data
         )
-        
+
     except Exception as e:
         logger.error("performance_metrics_failed", error=str(e), exc_info=True)
-        
+
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
@@ -319,37 +317,37 @@ async def component_health_check(component_name: str):
     try:
         # Get detailed health check
         health_summary = await health_service.perform_detailed_health_check()
-        
+
         # Find the requested component
         component_result = health_summary.get_component_by_name(component_name)
-        
+
         if not component_result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Component '{component_name}' not found or not monitored"
             )
-        
+
         # Determine HTTP status code
         http_status = _get_http_status_from_health(component_result.status)
-        
+
         response_data = component_result.to_dict()
-        
+
         # Add component-specific detailed information
         if component_name in health_summary.detailed_health:
             response_data["detailed_info"] = health_summary.detailed_health[component_name]
-        
+
         logger.info(
             "component_health_check_completed",
             component_name=component_name,
             status=component_result.status.value,
             response_time_ms=component_result.response_time_ms
         )
-        
+
         return JSONResponse(
             status_code=http_status,
             content=response_data
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -359,7 +357,7 @@ async def component_health_check(component_name: str):
             error=str(e),
             exc_info=True
         )
-        
+
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
@@ -383,9 +381,9 @@ async def health_check_config():
     """
     try:
         config_data = health_service.config.to_dict()
-        
+
         logger.debug("health_check_config_retrieved")
-        
+
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
@@ -394,10 +392,10 @@ async def health_check_config():
                 "registered_checks": list(health_service._last_check_results.keys())
             }
         )
-        
+
     except Exception as e:
         logger.error("health_check_config_failed", error=str(e), exc_info=True)
-        
+
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
@@ -439,7 +437,7 @@ async def health_status_summary():
     """
     try:
         health_summary = await health_service.perform_basic_health_check()
-        
+
         return JSONResponse(
             status_code=_get_http_status_from_health(health_summary.overall_status),
             content={
@@ -448,10 +446,10 @@ async def health_status_summary():
                 "uptime": health_summary.uptime_seconds
             }
         )
-        
+
     except Exception as e:
         logger.error("health_status_summary_failed", error=str(e))
-        
+
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={

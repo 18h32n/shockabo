@@ -15,15 +15,6 @@ import numpy as np
 import structlog
 
 from src.domain.models import ARCTask
-from src.utils.error_handling import (
-    EvaluationException,
-    PredictionFormatException,
-    ARCBaseException,
-    ErrorCode,
-    ErrorSeverity,
-    ErrorContext,
-    ErrorRecovery,
-)
 
 logger = structlog.get_logger(__name__)
 
@@ -98,7 +89,7 @@ class EvaluationService:
     def __init__(self):
         """Initialize the evaluation service."""
         self.logger = structlog.get_logger(__name__).bind(service="evaluation")
-        
+
         # Performance tracking
         self.evaluation_stats = {
             "total_evaluations": 0,
@@ -496,7 +487,7 @@ class EvaluationService:
             "processing_time_stats": time_stats,
             "strategies_used": list({r.strategy_used for r in results}),
         }
-    
+
     def get_evaluation_statistics(self) -> dict[str, Any]:
         """Get evaluation service performance statistics.
         
@@ -504,7 +495,7 @@ class EvaluationService:
             Dictionary containing evaluation statistics
         """
         stats = self.evaluation_stats.copy()
-        
+
         # Calculate derived metrics
         total_evals = stats["total_evaluations"]
         if total_evals > 0:
@@ -521,15 +512,15 @@ class EvaluationService:
                 "shape_mismatch_rate": 0.0,
                 "format_error_rate": 0.0,
             })
-        
+
         # Service health indicator
         stats["service_healthy"] = (
             stats["success_rate"] > 0.95 and  # > 95% success rate
             stats["avg_processing_time_ms"] < 1000  # < 1 second average processing
         )
-        
+
         return stats
-    
+
     def reset_statistics(self) -> None:
         """Reset evaluation statistics."""
         self.evaluation_stats = {
@@ -541,5 +532,5 @@ class EvaluationService:
             "processing_errors": 0,
             "total_processing_time_ms": 0.0,
         }
-        
+
         logger.info("evaluation_statistics_reset")

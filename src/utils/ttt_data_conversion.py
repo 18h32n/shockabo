@@ -4,12 +4,11 @@ MIT TTT Data Format Conversion Utilities
 This module provides data format conversion between ARC data models and MIT TTT format,
 implementing the exact data preprocessing approach from the MIT TTT research.
 """
-import json
 import random
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from src.domain.models import ARCTask
 
@@ -25,26 +24,26 @@ class AugmentationType(Enum):
 @dataclass
 class TTTExample:
     """Single training example in TTT format."""
-    input_grid: List[List[int]]
-    output_grid: List[List[int]]
+    input_grid: list[list[int]]
+    output_grid: list[list[int]]
     text_representation: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
 class TTTTask:
     """Task formatted for MIT TTT processing."""
     task_id: str
-    examples: List[TTTExample]
-    test_input: List[List[int]]
-    augmented_examples: List[TTTExample]
-    leave_one_out_splits: List[List[TTTExample]]
-    metadata: Dict[str, Any]
+    examples: list[TTTExample]
+    test_input: list[list[int]]
+    augmented_examples: list[TTTExample]
+    leave_one_out_splits: list[list[TTTExample]]
+    metadata: dict[str, Any]
 
 
 class TextTaskRepresenter:
     """Converts ARC grids to text representation for LLM processing."""
-    
+
     def __init__(self, use_gpt_format: bool = True):
         """
         Initialize text representer.
@@ -53,8 +52,8 @@ class TextTaskRepresenter:
             use_gpt_format: Whether to use GPT-style message formatting
         """
         self.use_gpt_format = use_gpt_format
-    
-    def grid_to_text(self, grid: List[List[int]]) -> str:
+
+    def grid_to_text(self, grid: list[list[int]]) -> str:
         """
         Convert grid to text representation.
         
@@ -65,11 +64,11 @@ class TextTaskRepresenter:
             String representation of grid in Python list syntax
         """
         return str(grid)
-    
+
     def create_example_text(
-        self, 
-        input_grid: List[List[int]], 
-        output_grid: List[List[int]]
+        self,
+        input_grid: list[list[int]],
+        output_grid: list[list[int]]
     ) -> str:
         """
         Create text representation of input-output example.
@@ -84,11 +83,11 @@ class TextTaskRepresenter:
         input_text = self.grid_to_text(input_grid)
         output_text = self.grid_to_text(output_grid)
         return f"{input_text} -> {output_text}"
-    
+
     def create_task_prompt(
-        self, 
-        examples: List[Tuple[List[List[int]], List[List[int]]]], 
-        test_input: List[List[int]]
+        self,
+        examples: list[tuple[list[list[int]], list[list[int]]]],
+        test_input: list[list[int]]
     ) -> str:
         """
         Create complete task prompt in MIT TTT format.
@@ -103,10 +102,10 @@ class TextTaskRepresenter:
         example_texts = []
         for input_grid, output_grid in examples:
             example_texts.append(self.create_example_text(input_grid, output_grid))
-        
+
         examples_str = "\n\n".join(example_texts)
         test_input_str = self.grid_to_text(test_input)
-        
+
         prompt = f"""Transform the input grid according to the pattern shown in the examples.
 
 Examples:
@@ -117,7 +116,7 @@ Test input:
 
 Test output:
 """
-        
+
         if self.use_gpt_format:
             # Wrap in GPT-style message format with metadata
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -126,45 +125,45 @@ Role: assistant
 Task: ARC Pattern Recognition
 
 {prompt}"""
-        
+
         return prompt
 
 
 class AugmentationEngine:
     """Implements MIT TTT augmentation strategies."""
-    
-    def __init__(self, random_seed: Optional[int] = None):
+
+    def __init__(self, random_seed: int | None = None):
         """Initialize augmentation engine."""
         if random_seed is not None:
             random.seed(random_seed)
-    
-    def rotate_grid(self, grid: List[List[int]], times: int = 1) -> List[List[int]]:
+
+    def rotate_grid(self, grid: list[list[int]], times: int = 1) -> list[list[int]]:
         """Rotate grid 90 degrees clockwise."""
         result = grid
         for _ in range(times % 4):
             rows, cols = len(result), len(result[0])
             result = [[result[rows - 1 - j][i] for j in range(rows)] for i in range(cols)]
         return result
-    
-    def flip_horizontal(self, grid: List[List[int]]) -> List[List[int]]:
+
+    def flip_horizontal(self, grid: list[list[int]]) -> list[list[int]]:
         """Flip grid horizontally."""
         return [row[::-1] for row in grid]
-    
-    def flip_vertical(self, grid: List[List[int]]) -> List[List[int]]:
+
+    def flip_vertical(self, grid: list[list[int]]) -> list[list[int]]:
         """Flip grid vertically."""
         return grid[::-1]
-    
-    def transpose_grid(self, grid: List[List[int]]) -> List[List[int]]:
+
+    def transpose_grid(self, grid: list[list[int]]) -> list[list[int]]:
         """Transpose grid (swap rows and columns)."""
         if not grid or not grid[0]:
             return grid
         return [[grid[j][i] for j in range(len(grid))] for i in range(len(grid[0]))]
-    
+
     def basic_augmentations(
-        self, 
-        input_grid: List[List[int]], 
-        output_grid: List[List[int]]
-    ) -> List[Tuple[List[List[int]], List[List[int]]]]:
+        self,
+        input_grid: list[list[int]],
+        output_grid: list[list[int]]
+    ) -> list[tuple[list[list[int]], list[list[int]]]]:
         """
         Apply basic augmentations (rotation, flip, transpose).
         
@@ -176,38 +175,38 @@ class AugmentationEngine:
             List of augmented (input, output) pairs
         """
         augmented = []
-        
+
         # Original
         augmented.append((input_grid, output_grid))
-        
+
         # Rotations
         for rot in [1, 2, 3]:
             aug_input = self.rotate_grid(input_grid, rot)
             aug_output = self.rotate_grid(output_grid, rot)
             augmented.append((aug_input, aug_output))
-        
+
         # Flips
         aug_input = self.flip_horizontal(input_grid)
         aug_output = self.flip_horizontal(output_grid)
         augmented.append((aug_input, aug_output))
-        
+
         aug_input = self.flip_vertical(input_grid)
         aug_output = self.flip_vertical(output_grid)
         augmented.append((aug_input, aug_output))
-        
+
         # Transpose
         aug_input = self.transpose_grid(input_grid)
         aug_output = self.transpose_grid(output_grid)
         augmented.append((aug_input, aug_output))
-        
+
         return augmented
-    
+
     def size_augmentations(
-        self, 
-        input_grid: List[List[int]], 
-        output_grid: List[List[int]],
+        self,
+        input_grid: list[list[int]],
+        output_grid: list[list[int]],
         max_size: int = 30
-    ) -> List[Tuple[List[List[int]], List[List[int]]]]:
+    ) -> list[tuple[list[list[int]], list[list[int]]]]:
         """
         Apply size-based augmentations (padding, cropping).
         
@@ -220,39 +219,39 @@ class AugmentationEngine:
             List of augmented (input, output) pairs
         """
         augmented = [(input_grid, output_grid)]
-        
+
         rows, cols = len(input_grid), len(input_grid[0])
-        
+
         # Padding augmentation
         if rows < max_size and cols < max_size:
             pad_rows = min(2, max_size - rows)
             pad_cols = min(2, max_size - cols)
-            
+
             # Pad with zeros
             padded_input = input_grid[:]
             padded_output = output_grid[:]
-            
+
             for _ in range(pad_rows):
                 padded_input.append([0] * cols)
                 if len(padded_output) < len(output_grid) + pad_rows:
                     padded_output.append([0] * len(output_grid[0]))
-            
+
             for row_idx in range(len(padded_input)):
                 if row_idx < len(padded_input):
                     padded_input[row_idx].extend([0] * pad_cols)
                 if row_idx < len(padded_output):
                     padded_output[row_idx].extend([0] * pad_cols)
-            
+
             augmented.append((padded_input, padded_output))
-        
+
         return augmented
-    
+
     def chain_augmentations(
-        self, 
-        input_grid: List[List[int]], 
-        output_grid: List[List[int]],
+        self,
+        input_grid: list[list[int]],
+        output_grid: list[list[int]],
         max_chains: int = 3
-    ) -> List[Tuple[List[List[int]], List[List[int]]]]:
+    ) -> list[tuple[list[list[int]], list[list[int]]]]:
         """
         Apply chained augmentations (combinations of basic transforms).
         
@@ -265,20 +264,20 @@ class AugmentationEngine:
             List of augmented (input, output) pairs
         """
         augmented = [(input_grid, output_grid)]
-        
+
         # Chain rotation + flip
         aug_input = self.flip_horizontal(self.rotate_grid(input_grid, 1))
         aug_output = self.flip_horizontal(self.rotate_grid(output_grid, 1))
         augmented.append((aug_input, aug_output))
-        
+
         # Chain rotation + transpose
         aug_input = self.transpose_grid(self.rotate_grid(input_grid, 2))
         aug_output = self.transpose_grid(self.rotate_grid(output_grid, 2))
         augmented.append((aug_input, aug_output))
-        
+
         return augmented[:max_chains + 1]
-    
-    def get_augmenters(self, augmentation_types: List[AugmentationType]) -> List[str]:
+
+    def get_augmenters(self, augmentation_types: list[AugmentationType]) -> list[str]:
         """
         Get list of augmentation function names.
         
@@ -289,26 +288,26 @@ class AugmentationEngine:
             List of augmentation method names
         """
         augmenters = []
-        
+
         if AugmentationType.BASIC in augmentation_types:
             augmenters.append("basic_augmentations")
-        
+
         if AugmentationType.SIZE in augmentation_types:
             augmenters.append("size_augmentations")
-        
+
         if AugmentationType.CHAIN in augmentation_types:
             augmenters.append("chain_augmentations")
-        
+
         return augmenters
 
 
 class TTTDataConverter:
     """Main converter for ARC to MIT TTT format."""
-    
+
     def __init__(
-        self, 
+        self,
         use_gpt_format: bool = True,
-        random_seed: Optional[int] = None
+        random_seed: int | None = None
     ):
         """
         Initialize TTT data converter.
@@ -319,11 +318,11 @@ class TTTDataConverter:
         """
         self.representer = TextTaskRepresenter(use_gpt_format)
         self.augmenter = AugmentationEngine(random_seed)
-    
+
     def convert_arc_task(
-        self, 
+        self,
         arc_task: ARCTask,
-        augmentation_types: Optional[List[AugmentationType]] = None
+        augmentation_types: list[AugmentationType] | None = None
     ) -> TTTTask:
         """
         Convert ARC task to TTT format.
@@ -337,15 +336,15 @@ class TTTDataConverter:
         """
         if augmentation_types is None:
             augmentation_types = [AugmentationType.BASIC]
-        
+
         # Convert training examples
         examples = []
         for train_example in arc_task.train_examples:
             text_repr = self.representer.create_example_text(
-                train_example["input"], 
+                train_example["input"],
                 train_example["output"]
             )
-            
+
             example = TTTExample(
                 input_grid=train_example["input"],
                 output_grid=train_example["output"],
@@ -353,13 +352,13 @@ class TTTDataConverter:
                 metadata={"original": True}
             )
             examples.append(example)
-        
+
         # Generate augmented examples
         augmented_examples = []
         for train_example in arc_task.train_examples:
             input_grid = train_example["input"]
             output_grid = train_example["output"]
-            
+
             for aug_type in augmentation_types:
                 if aug_type == AugmentationType.BASIC:
                     aug_pairs = self.augmenter.basic_augmentations(input_grid, output_grid)
@@ -369,10 +368,10 @@ class TTTDataConverter:
                     aug_pairs = self.augmenter.chain_augmentations(input_grid, output_grid)
                 else:
                     continue
-                
+
                 for aug_input, aug_output in aug_pairs[1:]:  # Skip original
                     text_repr = self.representer.create_example_text(aug_input, aug_output)
-                    
+
                     aug_example = TTTExample(
                         input_grid=aug_input,
                         output_grid=aug_output,
@@ -380,20 +379,20 @@ class TTTDataConverter:
                         metadata={"original": False, "augmentation_type": aug_type.value}
                     )
                     augmented_examples.append(aug_example)
-        
+
         # Create leave-one-out splits for per-instance training
         leave_one_out_splits = []
         all_examples = examples + augmented_examples
-        
+
         for i in range(len(examples)):  # Only for original examples
             # Create training set excluding example i
             training_set = []
             for j, example in enumerate(all_examples):
                 if j != i or not example.metadata.get("original", False):
                     training_set.append(example)
-            
+
             leave_one_out_splits.append(training_set)
-        
+
         # Create TTT task
         ttt_task = TTTTask(
             task_id=arc_task.task_id,
@@ -409,14 +408,14 @@ class TTTDataConverter:
                 "conversion_timestamp": datetime.now().isoformat()
             }
         )
-        
+
         return ttt_task
-    
+
     def create_training_prompts(
-        self, 
-        ttt_task: TTTTask, 
+        self,
+        ttt_task: TTTTask,
         split_index: int = 0
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Create training prompts for test-time training.
         
@@ -429,28 +428,28 @@ class TTTDataConverter:
         """
         if split_index >= len(ttt_task.leave_one_out_splits):
             split_index = 0
-        
+
         training_examples = ttt_task.leave_one_out_splits[split_index]
         prompts = []
-        
+
         for example in training_examples:
             # Create prompt with this example as target
             other_examples = [
-                (e.input_grid, e.output_grid) 
-                for e in training_examples 
+                (e.input_grid, e.output_grid)
+                for e in training_examples
                 if e != example
             ]
-            
+
             prompt = self.representer.create_task_prompt(
-                other_examples, 
+                other_examples,
                 example.input_grid
             )
             prompt += self.representer.grid_to_text(example.output_grid)
-            
+
             prompts.append(prompt)
-        
+
         return prompts
-    
+
     def create_inference_prompt(self, ttt_task: TTTTask) -> str:
         """
         Create inference prompt for test input prediction.
@@ -462,21 +461,21 @@ class TTTDataConverter:
             Inference prompt
         """
         example_pairs = [
-            (example.input_grid, example.output_grid) 
+            (example.input_grid, example.output_grid)
             for example in ttt_task.examples
         ]
-        
+
         return self.representer.create_task_prompt(
-            example_pairs, 
+            example_pairs,
             ttt_task.test_input
         )
-    
+
     def process_task(
-        self, 
+        self,
         arc_task: ARCTask,
         permute_n: int = 1,
-        augmentation_types: Optional[List[AugmentationType]] = None
-    ) -> Dict[str, Any]:
+        augmentation_types: list[AugmentationType] | None = None
+    ) -> dict[str, Any]:
         """
         Complete MIT TTT processing for a single task.
         
@@ -490,10 +489,10 @@ class TTTDataConverter:
         """
         if augmentation_types is None:
             augmentation_types = [AugmentationType.BASIC]
-        
+
         # Convert to TTT format
         ttt_task = self.convert_arc_task(arc_task, augmentation_types)
-        
+
         # Generate multiple permutations for self-consistency
         permutations = []
         for perm in range(permute_n):
@@ -505,16 +504,16 @@ class TTTDataConverter:
                     "split_index": split_idx,
                     "prompts": prompts
                 })
-            
+
             # Create inference prompt
             inference_prompt = self.create_inference_prompt(ttt_task)
-            
+
             permutations.append({
                 "permutation_id": perm,
                 "training_data": training_data,
                 "inference_prompt": inference_prompt
             })
-        
+
         return {
             "task_id": arc_task.task_id,
             "ttt_task": ttt_task,
@@ -527,7 +526,7 @@ class TTTDataConverter:
         }
 
 
-def string_to_grid(grid_str: str) -> List[List[int]]:
+def string_to_grid(grid_str: str) -> list[list[int]]:
     """
     Convert string representation back to grid.
     

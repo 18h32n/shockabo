@@ -219,7 +219,7 @@ class LoRAAdapter:
                     self._replace_linear_module(name, module, lora_layer)
 
                     logger.info(f"Applied LoRA to Linear {name} (in={module.in_features}, out={module.out_features})")
-                
+
                 elif isinstance(module, Conv1D):
                     # Store original module
                     self.original_layers[name] = module
@@ -256,7 +256,7 @@ class LoRAAdapter:
 
         # Navigate to parent module and replace
         self._replace_module_in_model(module_name, LoRALinearWrapper(original, lora))
-    
+
     def _replace_conv1d_module(self, module_name: str, original: Conv1D, lora: LoRAConv1D) -> None:
         """Replace a Conv1D module with LoRA-adapted version."""
         # Create a wrapper that combines original and LoRA
@@ -272,7 +272,7 @@ class LoRAAdapter:
 
         # Navigate to parent module and replace
         self._replace_module_in_model(module_name, LoRAConv1DWrapper(original, lora))
-    
+
     def _replace_module_in_model(self, module_name: str, new_module: nn.Module) -> None:
         """Helper to replace a module in the model."""
         parent_name = ".".join(module_name.split(".")[:-1])

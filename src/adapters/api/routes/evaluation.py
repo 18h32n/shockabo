@@ -10,11 +10,19 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Path,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from src.adapters.repositories.task_repository import get_task_repository
 from src.domain.evaluation_models import (
     DashboardMetrics,
     ExperimentRun,
@@ -22,27 +30,23 @@ from src.domain.evaluation_models import (
     TaskStatus,
     TaskSubmission,
 )
-from src.domain.models import ARCTask
 from src.domain.services.evaluation_service import EvaluationService
-from src.utils.jwt_auth import get_jwt_manager
-from src.adapters.repositories.task_repository import get_task_repository
 from src.utils.error_handling import (
     ARCBaseException,
-    TaskNotFoundException,
-    EvaluationException,
     AuthenticationException,
     ErrorCode,
-    ErrorSeverity,
     ErrorContext,
-    create_error_response,
-    get_http_status_for_error_code,
+    ErrorSeverity,
+    EvaluationException,
+    TaskNotFoundException,
 )
+from src.utils.jwt_auth import get_jwt_manager
 
 logger = structlog.get_logger(__name__)
 
 # Create API router with comprehensive documentation
 router = APIRouter(
-    prefix="/api/v1/evaluation", 
+    prefix="/api/v1/evaluation",
     tags=["Evaluation Framework"],
     responses={
         401: {
@@ -112,12 +116,12 @@ class ConnectionManager:
         self.active_connections: list[WebSocket] = []
         self.authenticated_connections: dict[WebSocket, str] = {}  # Maps websocket to user_id
         self.experiment_subscriptions: dict[str, list[WebSocket]] = {}
-        
+
         # Connection pooling
         self.max_connections = max_connections
         self.connection_semaphore = asyncio.Semaphore(max_connections)
         self.connection_timestamps: dict[WebSocket, datetime] = {}  # Track connection times
-        
+
         # Performance metrics
         self.total_connections_served = 0
         self.rejected_connections = 0
@@ -143,17 +147,17 @@ class ConnectionManager:
             )
             await websocket.close(code=1013, reason="Connection pool full")
             return False
-            
+
         # Acquire semaphore slot
         try:
             await self.connection_semaphore.acquire()
             await websocket.accept()
-            
+
             self.active_connections.append(websocket)
             self.authenticated_connections[websocket] = user_id
             self.connection_timestamps[websocket] = datetime.now()
             self.total_connections_served += 1
-            
+
             logger.info(
                 "websocket_connected",
                 user_id=user_id,
@@ -161,7 +165,7 @@ class ConnectionManager:
                 pool_usage_pct=(len(self.active_connections) / self.max_connections) * 100
             )
             return True
-            
+
         except Exception as e:
             self.connection_semaphore.release()
             logger.error("websocket_connect_error", user_id=user_id, error=str(e))
@@ -171,26 +175,26 @@ class ConnectionManager:
         """Remove a WebSocket connection and release pool resources."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            
+
         # Calculate connection duration
         connection_time = self.connection_timestamps.pop(websocket, None)
         duration_seconds = None
         if connection_time:
             duration_seconds = (datetime.now() - connection_time).total_seconds()
-        
+
         # Remove authentication mapping
         user_id = self.authenticated_connections.pop(websocket, None)
-        
+
         # Remove from all experiment subscriptions
         for experiment_id in list(self.experiment_subscriptions.keys()):
             if websocket in self.experiment_subscriptions[experiment_id]:
                 self.experiment_subscriptions[experiment_id].remove(websocket)
                 if not self.experiment_subscriptions[experiment_id]:
                     del self.experiment_subscriptions[experiment_id]
-        
+
         # Release semaphore slot
         self.connection_semaphore.release()
-        
+
         logger.info(
             "websocket_disconnected",
             user_id=user_id,
@@ -249,7 +253,7 @@ class ConnectionManager:
         # Clean up disconnected clients
         for conn in disconnected:
             self.disconnect(conn)
-    
+
     def get_pool_statistics(self) -> dict[str, Any]:
         """Get connection pool statistics.
         
@@ -309,14 +313,14 @@ class SubmitTaskRequest(BaseModel):
     )
     confidence_score: float = Field(
         ...,
-        ge=0.0, 
+        ge=0.0,
         le=1.0,
         description="Confidence level of the prediction (0.0 = no confidence, 1.0 = completely certain)",
         example=0.85
     )
     attempt_number: int = Field(
         ...,
-        ge=1, 
+        ge=1,
         le=2,
         description="Attempt number (1 or 2) following ARC competition rules",
         example=1
@@ -331,14 +335,14 @@ class SubmitTaskRequest(BaseModel):
             "certainty_factors": [0.9, 0.8, 0.7]
         }
     )
-    
+
     class Config:
         schema_extra = {
             "example": {
                 "task_id": "arc_2024_001",
                 "predicted_output": [
                     [1, 0, 1],
-                    [0, 1, 0], 
+                    [0, 1, 0],
                     [1, 0, 1]
                 ],
                 "strategy": "PATTERN_MATCH",
@@ -420,7 +424,7 @@ class SubmitTaskResponse(BaseModel):
             }
         }
     )
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -446,7 +450,7 @@ class SubmitTaskResponse(BaseModel):
 
 class TaskEvaluation(BaseModel):
     """Single task evaluation within a batch request."""
-    
+
     task_id: str = Field(..., description="ARC task identifier", example="arc_2024_001")
     predicted_output: list[list[int]] = Field(..., description="Predicted solution grid")
     confidence: float = Field(0.5, ge=0.0, le=1.0, description="Prediction confidence")
@@ -494,7 +498,7 @@ class EvaluateBatchRequest(BaseModel):
         le=3600,
         description="Maximum time allowed for batch processing (10-3600 seconds)"
     )
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -507,7 +511,7 @@ class EvaluateBatchRequest(BaseModel):
                         "metadata": {"pattern_type": "inversion"}
                     },
                     {
-                        "task_id": "arc_2024_002", 
+                        "task_id": "arc_2024_002",
                         "predicted_output": [[2, 3, 4], [5, 6, 7]],
                         "confidence": 0.78,
                         "attempt_number": 1,
@@ -610,7 +614,7 @@ class ExperimentStatusResponse(BaseModel):
             "last_error": "Task arc_2024_023 timed out after 30 seconds"
         }
     )
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -638,7 +642,7 @@ class ExperimentStatusResponse(BaseModel):
 
 # API Endpoints
 @router.post(
-    "/submit", 
+    "/submit",
     response_model=SubmitTaskResponse,
     summary="Submit ARC Task Solution",
     description="Submit a solution prediction for an ARC task and receive detailed evaluation results",
@@ -768,7 +772,7 @@ async def submit_task(
             "confidence_score": request.confidence_score
         }
     )
-    
+
     try:
         # Get authenticated user first
         try:
@@ -818,7 +822,7 @@ async def submit_task(
                     "Ensure evaluation service is healthy"
                 ]
             ) from e
-        
+
         # Create submission record
         submission = TaskSubmission(
             submission_id=f"sub_{request.task_id}_{datetime.now().timestamp()}",
@@ -835,7 +839,7 @@ async def submit_task(
             metadata=request.metadata,
             submitted_at=start_time,
         )
-        
+
         # Save submission to database with error handling
         try:
             task_repository.save_submission(submission, metrics)
@@ -1023,7 +1027,7 @@ async def evaluate_batch(
         "strategy": request.strategy.value,
         "num_evaluations": len(request.evaluations)
     })
-    
+
     try:
         # Get authenticated user
         try:
@@ -1043,7 +1047,7 @@ async def evaluate_batch(
                 context=context,
                 suggestions=["Provide at least one evaluation in the request"]
             )
-        
+
         experiment_id = request.experiment_id or f"exp_{datetime.now().timestamp()}"
         context.experiment_id = experiment_id
 
@@ -1065,7 +1069,7 @@ async def evaluate_batch(
                 context=context,
                 suggestions=["Check experiment configuration"]
             ) from e
-        
+
         # Save experiment to database
         try:
             task_repository.save_experiment(experiment)
@@ -1211,7 +1215,7 @@ async def _process_batch_evaluation(
                 "success_rate": completed_tasks / total_tasks,
             }
         )
-        
+
         # Update experiment in database
         task_repository.update_experiment_status(
             experiment.run_id,
@@ -1239,7 +1243,7 @@ async def _process_batch_evaluation(
             exc_info=True,
         )
         experiment.mark_failed(str(e))
-        
+
         # Update experiment in database
         task_repository.update_experiment_status(
             experiment.run_id,
@@ -1362,7 +1366,7 @@ async def get_experiment_status(
         experiment_id=experiment_id,
         additional_data={"endpoint": "get_experiment_status"}
     )
-    
+
     try:
         # Authenticate user
         try:
@@ -1373,7 +1377,7 @@ async def get_experiment_status(
                 f"Failed to authenticate user: {str(e)}",
                 context=context
             ) from e
-    
+
         # Get experiment from database
         try:
             experiment = task_repository.get_experiment(experiment_id)
@@ -1387,7 +1391,7 @@ async def get_experiment_status(
                     "Verify experiment ID format"
                 ]
             ) from e
-        
+
         if not experiment:
             raise ARCBaseException(
                 message=f"Experiment {experiment_id} not found",
@@ -1399,19 +1403,19 @@ async def get_experiment_status(
                     "Ensure you have access to this experiment"
                 ]
             )
-    
+
         # Calculate progress
         total_tasks = len(experiment.task_ids)
         completed_tasks = experiment.metrics.get("completed_tasks", 0)
         progress = completed_tasks / total_tasks if total_tasks > 0 else 0.0
-        
+
         # Estimate completion time
         estimated_completion = None
         if experiment.status == TaskStatus.IN_PROGRESS and progress > 0:
             elapsed = (datetime.now() - experiment.started_at).total_seconds()
             remaining_time = (elapsed / progress) * (1 - progress)
             estimated_completion = datetime.now() + timedelta(seconds=remaining_time)
-        
+
         return ExperimentStatusResponse(
             experiment_id=experiment_id,
             status=experiment.status,
@@ -1422,7 +1426,7 @@ async def get_experiment_status(
             average_accuracy=experiment.metrics.get("average_accuracy", 0.0),
             estimated_completion_time=estimated_completion,
         )
-        
+
     except ARCBaseException:
         # Let middleware handle ARC exceptions
         raise
@@ -1577,7 +1581,7 @@ async def websocket_endpoint(websocket: WebSocket):
     user_id = await jwt_manager.authenticate_websocket(websocket)
     if not user_id:
         return  # Connection already closed by authenticate_websocket
-    
+
     await manager.connect(websocket, user_id)
     try:
         # Send initial connection confirmation
@@ -1632,25 +1636,25 @@ async def websocket_endpoint(websocket: WebSocket):
 async def _send_dashboard_metrics(websocket: WebSocket):
     """Send periodic dashboard metrics to a connected client with adaptive frequency."""
     from src.domain.services.dashboard_aggregator import get_dashboard_aggregator
-    
+
     aggregator = get_dashboard_aggregator()
     user_id = manager.authenticated_connections.get(websocket, "unknown")
-    
+
     # Track client activity for adaptive updates
     last_activity = datetime.now()
     update_interval = 0.5  # Start with 500ms default
     min_interval = 0.1  # 100ms for very active clients
     max_interval = 5.0  # 5s for idle clients
-    
+
     try:
         while websocket in manager.active_connections:
             # Get actual metrics from aggregator
             metrics = aggregator.get_dashboard_metrics()
-            
+
             # Adjust update frequency based on client activity
             current_time = datetime.now()
             time_since_activity = (current_time - last_activity).total_seconds()
-            
+
             # Adaptive frequency logic
             if time_since_activity < 5:  # Very active
                 update_interval = max(min_interval, update_interval * 0.9)
@@ -1658,13 +1662,13 @@ async def _send_dashboard_metrics(websocket: WebSocket):
                 update_interval = 0.5  # Default
             else:  # Idle
                 update_interval = min(max_interval, update_interval * 1.1)
-            
+
             # Send metrics update
             await manager.send_personal_message(
                 json.dumps(metrics.to_websocket_message()),
                 websocket,
             )
-            
+
             logger.debug(
                 "dashboard_metrics_sent",
                 user_id=user_id,
@@ -2105,7 +2109,7 @@ async def get_connection_pool_stats(
         Consider implementing local caching for dashboard applications.
     """
     stats = manager.get_pool_statistics()
-    
+
     return JSONResponse(
         content={
             "timestamp": datetime.now().isoformat(),
@@ -2220,7 +2224,7 @@ async def create_token(user_id: str = "test_user"):
     """
     access_token = jwt_manager.create_access_token(user_id)
     refresh_token = jwt_manager.create_refresh_token(user_id)
-    
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
