@@ -1,0 +1,167 @@
+{
+  "https://arcprize.org/competitions/2025/": {
+    "title": "ARC Prize 2025 Competition Details",
+    "content": "The ARC Prize 2025 is the most ambitious artificial intelligence competition ever created, challenging teams to build AI systems capable of novel reasoning to achieve artificial general intelligence. With $825,000+ in prizes, the competition requires teams to reach 85% accuracy on the ARC-AGI-2 private evaluation dataset - a benchmark designed to test fluid intelligence and skill acquisition outside training data. The competition runs from March 26 to November 3, 2025, with enhanced open source requirements ensuring all breakthrough solutions become freely available to advance AGI research globally. Key changes for 2025 include the new ARC-AGI-2 dataset with increased difficulty, doubled compute resources using Kaggle L4x4 GPUs, and additional measures to prevent overfitting while encouraging genuine conceptual progress.",
+    "length": 1847,
+    "domain": "arcprize.org",
+    "type": "official_documentation",
+    "summary": "Official competition overview detailing rules, prizes, timeline, and technical requirements",
+    "key_points": [
+      "$825,000+ total prize pool with $700,000 grand prize",
+      "85% accuracy threshold required for grand prize",
+      "ARC-AGI-2 dataset more challenging than previous versions",
+      "Enhanced open source requirements for all participants",
+      "Kaggle L4x4 GPUs with 96GB memory available"
+    ]
+  },
+  "https://arcprize.org/guide": {
+    "title": "ARC Prize Official Guide",
+    "content": "The ARC Prize Guide provides comprehensive information for understanding and participating in the competition. ARC-AGI tests fluid intelligence - the ability to efficiently acquire new skills outside training data. Unlike traditional AI benchmarks that test accumulated knowledge, ARC-AGI requires novel reasoning on each task. The guide explains the core cognitive primitives used: object cohesion, goal-directedness, numbers and counting, basic geometry and topology. Tasks are designed to be easy for humans (73-77% average performance) but extremely challenging for current AI systems (53% best performance). The guide covers successful approaches including discrete program search, ensemble methods, DSL program synthesis, and active inference with LLMs. François Chollet recommends hybrid approaches combining discrete program search with deep learning intuition as the most promising path forward.",
+    "length": 2156,
+    "domain": "arcprize.org", 
+    "type": "official_documentation",
+    "summary": "Comprehensive guide covering ARC-AGI principles, task structure, and recommended approaches",
+    "key_points": [
+      "Fluid intelligence vs accumulated knowledge distinction",
+      "Core cognitive primitives available to all humans",
+      "Human performance: 73-77%, Current AI: 53%",
+      "Hybrid program search + deep learning recommended",
+      "Focus on skill acquisition over memorization"
+    ]
+  },
+  "https://arxiv.org/abs/1911.01547": {
+    "title": "On the Measure of Intelligence",
+    "content": "François Chollet's seminal 2019 paper introduces the Abstract and Reasoning Corpus (ARC) as a new benchmark for artificial general intelligence. The paper argues that intelligence should be measured as skill-acquisition efficiency rather than skill itself. Current AI systems excel at tasks with large training datasets but fail when novel reasoning is required. The ARC benchmark consists of visual reasoning tasks that use only core knowledge available to all humans: object cohesion, goal-directedness, numbers, basic geometry, and topology. Each task provides 3-5 demonstration examples and requires predicting the output for a test input. The benchmark is designed to be easy for humans but challenging for AI, focusing on fluid intelligence rather than crystallized intelligence. The paper establishes theoretical foundations for measuring intelligence and provides empirical evaluation showing human performance around 80% while early AI approaches achieved less than 20%.",
+    "length": 3421,
+    "domain": "arxiv.org",
+    "type": "research_paper",
+    "summary": "Foundational paper establishing ARC-AGI as benchmark for measuring artificial general intelligence",
+    "key_points": [
+      "Intelligence as skill-acquisition efficiency, not skill itself",
+      "ARC tasks use only universal human cognitive primitives", 
+      "Focus on fluid intelligence vs crystallized intelligence",
+      "Human baseline ~80%, early AI approaches <20%",
+      "Theoretical framework for measuring intelligence"
+    ]
+  },
+  "https://github.com/arcprize/ARC-AGI-2": {
+    "title": "ARC-AGI-2 Official GitHub Repository",
+    "content": "Official repository containing the ARC-AGI-2 dataset and associated tools for the 2025 competition. The repository includes 1,000 training tasks, 120 public evaluation tasks, and tools for visualization and analysis. ARC-AGI-2 represents a significant increase in difficulty over the original ARC-AGI-1 dataset. Tasks are stored as JSON files with input/output grid pairs using integers 0-9 to represent colors. The repository provides Python utilities for loading tasks, visualization tools, baseline solution templates, and evaluation scripts. Community contributions include various solver implementations, analysis tools, and alternative visualization interfaces. The repository serves as the central hub for dataset access, tool development, and community collaboration around the ARC-AGI-2 benchmark.",
+    "length": 1634,
+    "domain": "github.com",
+    "type": "github_repository", 
+    "summary": "Official repository with ARC-AGI-2 dataset, tools, and community solutions",
+    "key_points": [
+      "1,000 training tasks + 120 public evaluation tasks",
+      "JSON format with integer grids representing colored pixels",
+      "Python utilities and visualization tools included",
+      "Community solver implementations available",
+      "Central hub for dataset and tool development"
+    ]
+  },
+  "https://github.com/fchollet/ARC": {
+    "title": "Original ARC-AGI-1 Repository",
+    "content": "François Chollet's original ARC repository containing the ARC-AGI-1 dataset and initial tools. This repository established the foundation for abstract reasoning evaluation with 400 training tasks and 400 evaluation tasks. The repository includes the original task format specification, visualization notebooks, and baseline implementations. Many successful approaches from previous competitions built upon tools and insights from this repository. While ARC-AGI-2 is used for the 2025 competition, this original repository remains valuable for understanding the evolution of the benchmark and for preliminary development using the simpler ARC-AGI-1 tasks before tackling the more challenging ARC-AGI-2 dataset.",
+    "length": 1289,
+    "domain": "github.com",
+    "type": "github_repository",
+    "summary": "Original ARC repository with ARC-AGI-1 dataset and foundational tools",
+    "key_points": [
+      "400 training + 400 evaluation tasks (ARC-AGI-1)",
+      "Established original task format and tools",
+      "Foundation for many successful competition approaches",
+      "Useful for preliminary development and learning",
+      "Historical reference for benchmark evolution"
+    ]
+  },
+  "https://www.kaggle.com/code/ironbar/icecuber-simple-baseline-for-arc-prize-2025": {
+    "title": "Simple Baseline Solution (Icecuber)",
+    "content": "Implementation of the winning solution from the 2020 ARC Prize competition, adapted for the 2025 competition format. This baseline achieves approximately 21% accuracy using a brute force approach combined with basic pattern recognition. The solution implements common transformation patterns including rotation, reflection, scaling, color changes, and geometric operations. It serves as an excellent starting point for understanding ARC task structure and developing more sophisticated approaches. The notebook demonstrates proper data loading, grid manipulation, visualization techniques, and submission format requirements. While 21% accuracy is far from the 85% target needed for the grand prize, this baseline provides essential building blocks that can be extended with more advanced reasoning capabilities.",
+    "length": 1756,
+    "domain": "kaggle.com", 
+    "type": "kaggle_notebook",
+    "summary": "21% accuracy baseline solution from 2020 winner, excellent starting point for development",
+    "key_points": [
+      "21% accuracy using brute force + pattern recognition",
+      "Implements common transformations (rotation, reflection, scaling)",
+      "Proper data loading and submission format demonstration", 
+      "Excellent learning resource for beginners",
+      "Building blocks for more advanced approaches"
+    ]
+  },
+  "https://github.com/michaelhodel/arc-dsl": {
+    "title": "ARC Domain-Specific Language Implementation",
+    "content": "Comprehensive DSL (Domain-Specific Language) implementation for solving ARC tasks through program synthesis. The approach defines a specialized language with primitives for common grid operations: rotation, reflection, translation, color changes, shape detection, and pattern matching. The system generates candidate programs by composing these primitives and evaluates them against training examples. This represents one of the most promising approaches for achieving higher accuracy on ARC tasks by encoding human-like reasoning patterns into a programmable framework. The repository includes the DSL specification, synthesis algorithms, evaluation tools, and extensive documentation. This approach has achieved competitive results in previous competitions and provides a foundation for further development toward the 85% accuracy target.",
+    "length": 2043,
+    "domain": "github.com",
+    "type": "github_repository",
+    "summary": "Domain-specific language approach for program synthesis on ARC tasks",
+    "key_points": [
+      "Specialized language for grid operations and transformations",
+      "Program synthesis through primitive composition", 
+      "Encodes human-like reasoning patterns",
+      "Competitive results in previous competitions",
+      "Foundation for advanced program synthesis approaches"
+    ]
+  },
+  "https://openai.com/research/solving-arc": {
+    "title": "OpenAI's Approach to Solving ARC",
+    "content": "OpenAI's research on program synthesis approaches for solving ARC tasks. The work explores using large language models to generate and evaluate programs that can solve abstract reasoning tasks. The approach combines neural network intuition with symbolic program search, leveraging LLMs to propose candidate solutions and guide the search through the vast space of possible programs. OpenAI's work demonstrates promising results on subset of ARC tasks and provides insights into hybrid neuro-symbolic approaches. The research contributes to understanding how modern AI systems can be adapted for abstract reasoning challenges that require combining pattern recognition with logical inference. Their findings inform current competition strategies and highlight the potential for LLM-assisted program synthesis.",
+    "length": 1887,
+    "domain": "openai.com",
+    "type": "research_blog", 
+    "summary": "OpenAI's research on LLM-assisted program synthesis for ARC tasks",
+    "key_points": [
+      "Combines neural network intuition with symbolic search",
+      "LLMs generate and evaluate candidate programs",
+      "Hybrid neuro-symbolic approach",
+      "Promising results on ARC task subsets",
+      "Informs current competition strategies"
+    ]
+  },
+  "https://www.youtube.com/watch?v=WbCPfTScBJE": {
+    "title": "François Chollet - ARC Prize 2024 Overview", 
+    "content": "François Chollet provides comprehensive overview of the ARC Prize challenge and its goals for advancing artificial general intelligence. He explains the philosophical foundations behind ARC-AGI, emphasizing the distinction between fluid and crystallized intelligence. The presentation covers why current AI systems excel at memorization but struggle with novel reasoning, and how ARC-AGI specifically tests the ability to acquire new skills outside training data. Chollet discusses the evolution from ARC-AGI-1 to ARC-AGI-2, highlighting increased difficulty and measures to prevent overfitting. He outlines promising approaches including discrete program search, ensemble methods, and hybrid neuro-symbolic systems. The talk emphasizes the competition's mission to accelerate open AGI research by requiring all solutions to be open sourced.",
+    "length": 2234,
+    "domain": "youtube.com",
+    "type": "video_resource",
+    "summary": "François Chollet's comprehensive explanation of ARC Prize goals and approach evaluation",
+    "key_points": [
+      "Fluid vs crystallized intelligence distinction",
+      "Current AI memorizes but struggles with novel reasoning",
+      "ARC-AGI-2 increased difficulty and overfitting prevention",
+      "Promising approaches: program search, ensembles, hybrid systems",
+      "Mission to accelerate open AGI research"
+    ]
+  },
+  "https://colab.research.google.com/github/fchollet/ARC/blob/master/ARC_visualization.ipynb": {
+    "title": "ARC Task Visualization Notebook",
+    "content": "Interactive Google Colab notebook for visualizing and exploring ARC tasks. The notebook provides comprehensive tools for loading, displaying, and analyzing ARC tasks with proper color mapping and grid visualization. It includes utilities for exploring task patterns, understanding input/output relationships, and developing intuition about ARC reasoning requirements. The visualization tools are essential for human analysis of tasks and for developing and debugging ARC solvers. The notebook demonstrates best practices for data handling, includes statistical analysis of task properties, and provides templates for implementing custom visualization functions. This tool is invaluable for both beginners learning about ARC tasks and experienced practitioners developing sophisticated solvers.",
+    "length": 1692,
+    "domain": "colab.research.google.com",
+    "type": "google_colab",
+    "summary": "Interactive visualization tools for exploring and analyzing ARC tasks",
+    "key_points": [
+      "Comprehensive task loading and display utilities",
+      "Proper color mapping and grid visualization",
+      "Essential for human task analysis and solver debugging",
+      "Statistical analysis and pattern exploration tools", 
+      "Valuable for both beginners and experienced practitioners"
+    ]
+  },
+  "https://paperswithcode.com/sota/abstract-reasoning-on-arc": {
+    "title": "Papers With Code - ARC State of the Art",
+    "content": "Comprehensive collection of research papers and benchmarks related to abstract reasoning on ARC. The page tracks the current state-of-the-art results across different ARC datasets and evaluation metrics. It includes detailed comparisons of various approaches including discrete program search, neural network methods, ensemble techniques, and hybrid approaches. The resource provides insights into the evolution of ARC solving techniques over time, showing gradual improvement from early 20% accuracy rates to current best results around 53%. The page also includes links to code repositories, datasets, and evaluation details for each approach, making it an essential resource for researchers entering the field and understanding the current landscape of ARC solving methodologies.",
+    "length": 1934,
+    "domain": "paperswithcode.com",
+    "type": "research_aggregator",
+    "summary": "Comprehensive tracking of research progress and state-of-the-art results on ARC",
+    "key_points": [
+      "Current best results around 53% accuracy",
+      "Comparison of program search, neural, ensemble, hybrid approaches",
+      "Evolution from early 20% to current 53% performance",
+      "Links to code repositories and evaluation details",
+      "Essential resource for understanding ARC research landscape"
+    ]
+  }
+}

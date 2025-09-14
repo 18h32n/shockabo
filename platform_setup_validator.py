@@ -12,13 +12,11 @@ Run with: python platform_setup_validator.py
 import json
 import os
 import platform
-import subprocess
 import sys
-import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psutil
 
@@ -29,8 +27,8 @@ class ValidationResult:
     check_name: str
     status: str  # 'pass', 'warning', 'fail'
     message: str
-    recommendation: Optional[str] = None
-    details: Dict[str, Any] = None
+    recommendation: str | None = None
+    details: dict[str, Any] = None
 
     def __post_init__(self):
         if self.details is None:
@@ -42,11 +40,11 @@ class PlatformSetupValidator:
 
     def __init__(self):
         """Initialize platform setup validator."""
-        self.results: List[ValidationResult] = []
+        self.results: list[ValidationResult] = []
         self.platform_info = self._detect_platform()
         print(f"Detected platform: {self.platform_info['platform']}")
 
-    def _detect_platform(self) -> Dict[str, Any]:
+    def _detect_platform(self) -> dict[str, Any]:
         """Detect current platform and gather system information."""
         # Platform detection logic
         if os.path.exists('/kaggle') or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
@@ -57,10 +55,10 @@ class PlatformSetupValidator:
             platform_name = 'paperspace'
         else:
             platform_name = 'local'
-        
+
         # System information
         memory_info = psutil.virtual_memory()
-        
+
         info = {
             'platform': platform_name,
             'os': platform.system(),
@@ -72,7 +70,7 @@ class PlatformSetupValidator:
             'available_memory_gb': memory_info.available / (1024**3),
             'disk_usage': {}
         }
-        
+
         # Disk usage information
         try:
             disk_usage = psutil.disk_usage('/')
@@ -81,13 +79,13 @@ class PlatformSetupValidator:
                 'used_gb': disk_usage.used / (1024**3),
                 'free_gb': disk_usage.free / (1024**3)
             }
-        except:
+        except Exception:
             info['disk_usage'] = {'error': 'Could not determine disk usage'}
-        
+
         return info
 
-    def _add_result(self, check_name: str, status: str, message: str, 
-                   recommendation: str = None, details: Dict[str, Any] = None):
+    def _add_result(self, check_name: str, status: str, message: str,
+                   recommendation: str = None, details: dict[str, Any] = None):
         """Add validation result."""
         result = ValidationResult(
             check_name=check_name,
@@ -97,7 +95,7 @@ class PlatformSetupValidator:
             details=details or {}
         )
         self.results.append(result)
-        
+
         # Print immediate feedback
         status_icon = {'pass': '[PASS]', 'warning': '[WARN]', 'fail': '[FAIL]'}.get(status, '[INFO]')
         print(f"{status_icon} {check_name}: {message}")
@@ -107,7 +105,7 @@ class PlatformSetupValidator:
     def validate_python_environment(self):
         """Validate Python environment and dependencies."""
         print("\nValidating Python Environment...")
-        
+
         # Python version check
         python_version = tuple(map(int, platform.python_version().split('.')))
         if python_version >= (3, 8):
@@ -123,7 +121,7 @@ class PlatformSetupValidator:
                 f"Python {platform.python_version()} (requires 3.8+)",
                 "Upgrade to Python 3.8 or higher"
             )
-        
+
         # Check critical dependencies
         critical_deps = {
             'torch': 'PyTorch for model training',
@@ -133,17 +131,17 @@ class PlatformSetupValidator:
             'datasets': 'Hugging Face datasets',
             'peft': 'Parameter-efficient fine-tuning'
         }
-        
+
         missing_deps = []
         available_deps = []
-        
+
         for dep_name, description in critical_deps.items():
             try:
                 __import__(dep_name)
                 available_deps.append(dep_name)
             except ImportError:
                 missing_deps.append((dep_name, description))
-        
+
         if not missing_deps:
             self._add_result(
                 "Dependencies",
@@ -153,7 +151,7 @@ class PlatformSetupValidator:
             )
         else:
             self._add_result(
-                "Dependencies", 
+                "Dependencies",
                 "warning" if len(missing_deps) < len(critical_deps) // 2 else "fail",
                 f"Missing {len(missing_deps)} dependencies",
                 f"Install missing packages: {', '.join(dep[0] for dep in missing_deps)}",
@@ -163,15 +161,15 @@ class PlatformSetupValidator:
     def validate_gpu_setup(self):
         """Validate GPU setup and CUDA availability."""
         print("\nValidating GPU Setup...")
-        
+
         try:
             import torch
-            
+
             cuda_available = torch.cuda.is_available()
             if cuda_available:
                 gpu_count = torch.cuda.device_count()
                 gpu_info = []
-                
+
                 for i in range(gpu_count):
                     props = torch.cuda.get_device_properties(i)
                     gpu_info.append({
@@ -179,14 +177,14 @@ class PlatformSetupValidator:
                         'memory_gb': props.total_memory / (1024**3),
                         'compute_capability': f"{props.major}.{props.minor}"
                     })
-                
+
                 self._add_result(
                     "CUDA Availability",
                     "pass",
                     f"CUDA available with {gpu_count} GPU(s)",
                     details={'gpus': gpu_info}
                 )
-                
+
                 # Memory check
                 total_gpu_memory = sum(gpu['memory_gb'] for gpu in gpu_info)
                 if total_gpu_memory >= 8:
@@ -216,7 +214,7 @@ class PlatformSetupValidator:
                     "CUDA not available - CPU mode only",
                     "TTT training will be significantly slower on CPU"
                 )
-                
+
         except ImportError:
             self._add_result(
                 "PyTorch",
@@ -228,11 +226,11 @@ class PlatformSetupValidator:
     def validate_memory_requirements(self):
         """Validate memory requirements for TTT implementation."""
         print("\nValidating Memory Requirements...")
-        
+
         memory_info = psutil.virtual_memory()
         total_gb = memory_info.total / (1024**3)
         available_gb = memory_info.available / (1024**3)
-        
+
         # Platform-specific memory requirements
         platform_requirements = {
             'kaggle': {'min': 16, 'recommended': 28},
@@ -240,12 +238,12 @@ class PlatformSetupValidator:
             'paperspace': {'min': 8, 'recommended': 16},
             'local': {'min': 8, 'recommended': 16}
         }
-        
+
         requirements = platform_requirements.get(
-            self.platform_info['platform'], 
+            self.platform_info['platform'],
             {'min': 8, 'recommended': 16}
         )
-        
+
         if total_gb >= requirements['recommended']:
             self._add_result(
                 "System Memory",
@@ -266,7 +264,7 @@ class PlatformSetupValidator:
                 f"Insufficient memory: {total_gb:.1f}GB (minimum: {requirements['min']}GB)",
                 "Upgrade system memory or use smaller models"
             )
-        
+
         # Available memory check
         if available_gb < requirements['min'] * 0.5:
             self._add_result(
@@ -279,7 +277,7 @@ class PlatformSetupValidator:
     def validate_storage_requirements(self):
         """Validate storage requirements."""
         print("\nValidating Storage Requirements...")
-        
+
         disk_info = self.platform_info['disk_usage']
         if 'error' in disk_info:
             self._add_result(
@@ -289,16 +287,16 @@ class PlatformSetupValidator:
                 "Manually verify sufficient disk space (>10GB recommended)"
             )
             return
-        
+
         free_gb = disk_info['free_gb']
-        
+
         # Storage requirements
         requirements = {
             'minimum': 5,    # 5GB minimum
             'recommended': 20,  # 20GB recommended for models + data + checkpoints
             'optimal': 50    # 50GB for full development
         }
-        
+
         if free_gb >= requirements['optimal']:
             self._add_result(
                 "Disk Space",
@@ -329,26 +327,26 @@ class PlatformSetupValidator:
     def validate_network_connectivity(self):
         """Validate network connectivity for model downloads."""
         print("\nValidating Network Connectivity...")
-        
+
         # Test Hugging Face Hub connectivity
         test_urls = [
             ('huggingface.co', 'Hugging Face Hub'),
             ('pypi.org', 'PyPI Package Index'),
             ('github.com', 'GitHub')
         ]
-        
+
         connectivity_results = []
-        
-        for url, description in test_urls:
+
+        for url, _description in test_urls:
             try:
                 import socket
                 socket.create_connection((url, 443), timeout=5)
                 connectivity_results.append((url, True))
-            except (socket.timeout, socket.error):
+            except (TimeoutError, OSError):
                 connectivity_results.append((url, False))
-        
+
         successful_connections = sum(1 for _, success in connectivity_results if success)
-        
+
         if successful_connections == len(test_urls):
             self._add_result(
                 "Network Connectivity",
@@ -374,9 +372,9 @@ class PlatformSetupValidator:
     def validate_platform_specific_requirements(self):
         """Validate platform-specific requirements."""
         print(f"\nValidating {self.platform_info['platform'].title()} Platform Requirements...")
-        
+
         platform = self.platform_info['platform']
-        
+
         if platform == 'kaggle':
             # Kaggle-specific validations
             if os.path.exists('/kaggle/input'):
@@ -392,7 +390,7 @@ class PlatformSetupValidator:
                     "Kaggle input directory not found",
                     "Ensure datasets are properly mounted"
                 )
-            
+
             if os.path.exists('/kaggle/working') and os.access('/kaggle/working', os.W_OK):
                 self._add_result(
                     "Kaggle Working Directory",
@@ -406,7 +404,7 @@ class PlatformSetupValidator:
                     "Kaggle working directory not writable",
                     "Check kernel permissions"
                 )
-        
+
         elif platform == 'colab':
             # Colab-specific validations
             try:
@@ -422,7 +420,7 @@ class PlatformSetupValidator:
                     "warning",
                     "Colab environment not properly detected"
                 )
-            
+
             # Check for GPU allocation
             if 'COLAB_GPU' in os.environ:
                 self._add_result(
@@ -437,7 +435,7 @@ class PlatformSetupValidator:
                     "No GPU runtime detected",
                     "Enable GPU runtime for better performance"
                 )
-        
+
         elif platform == 'paperspace':
             # Paperspace-specific validations
             if os.path.exists('/storage'):
@@ -452,7 +450,7 @@ class PlatformSetupValidator:
                     "warning",
                     "Paperspace storage not found"
                 )
-        
+
         else:  # local
             # Local environment validations
             self._add_result(
@@ -464,13 +462,13 @@ class PlatformSetupValidator:
     def validate_configuration_files(self):
         """Validate configuration files exist and are valid."""
         print("\nValidating Configuration Files...")
-        
+
         config_dir = Path('configs')
         required_configs = [
             f'{self.platform_info["platform"]}.yaml',
             'strategies/ttt.yaml'
         ]
-        
+
         if not config_dir.exists():
             self._add_result(
                 "Configuration Directory",
@@ -479,13 +477,13 @@ class PlatformSetupValidator:
                 "Ensure configs/ directory exists with platform configurations"
             )
             return
-        
+
         for config_file in required_configs:
             config_path = config_dir / config_file
             if config_path.exists():
                 try:
                     import yaml
-                    with open(config_path, 'r', encoding='utf-8') as f:
+                    with open(config_path, encoding='utf-8') as f:
                         yaml.safe_load(f)
                     self._add_result(
                         f"Config: {config_file}",
@@ -507,13 +505,13 @@ class PlatformSetupValidator:
                     f"Create {config_file} for platform-specific settings"
                 )
 
-    def run_all_validations(self) -> Dict[str, Any]:
+    def run_all_validations(self) -> dict[str, Any]:
         """Run all platform validation checks."""
         print("Starting Platform Setup Validation...")
         print(f"Platform: {self.platform_info['platform']}")
         print(f"System: {self.platform_info['os']} {self.platform_info['os_version']}")
         print(f"Memory: {self.platform_info['total_memory_gb']:.1f}GB total")
-        
+
         validation_methods = [
             self.validate_python_environment,
             self.validate_gpu_setup,
@@ -523,27 +521,27 @@ class PlatformSetupValidator:
             self.validate_platform_specific_requirements,
             self.validate_configuration_files
         ]
-        
+
         for validation_method in validation_methods:
             validation_method()
-        
+
         # Generate summary
         summary = self._generate_summary()
         return summary
 
-    def _generate_summary(self) -> Dict[str, Any]:
+    def _generate_summary(self) -> dict[str, Any]:
         """Generate validation summary."""
         total_checks = len(self.results)
         passed = len([r for r in self.results if r.status == 'pass'])
         warnings = len([r for r in self.results if r.status == 'warning'])
         failed = len([r for r in self.results if r.status == 'fail'])
-        
+
         overall_status = 'ready'
         if failed > 0:
             overall_status = 'needs_attention'
         elif warnings > 0:
             overall_status = 'ready_with_warnings'
-        
+
         summary = {
             'platform': self.platform_info['platform'],
             'timestamp': datetime.now().isoformat(),
@@ -559,13 +557,13 @@ class PlatformSetupValidator:
             'validation_results': [asdict(result) for result in self.results],
             'recommendations': self._generate_recommendations()
         }
-        
+
         return summary
 
-    def _generate_recommendations(self) -> List[str]:
+    def _generate_recommendations(self) -> list[str]:
         """Generate setup recommendations."""
         recommendations = []
-        
+
         # Critical failures
         failed_checks = [r for r in self.results if r.status == 'fail']
         if failed_checks:
@@ -573,7 +571,7 @@ class PlatformSetupValidator:
             for check in failed_checks:
                 if check.recommendation:
                     recommendations.append(f"  - {check.check_name}: {check.recommendation}")
-        
+
         # Warnings
         warning_checks = [r for r in self.results if r.status == 'warning']
         if warning_checks:
@@ -581,7 +579,7 @@ class PlatformSetupValidator:
             for check in warning_checks:
                 if check.recommendation:
                     recommendations.append(f"  - {check.check_name}: {check.recommendation}")
-        
+
         # Platform-specific recommendations
         platform = self.platform_info['platform']
         if platform == 'kaggle':
@@ -605,7 +603,7 @@ class PlatformSetupValidator:
                 "  - Monitor system resources",
                 "  - Enable GPU if available"
             ])
-        
+
         return recommendations
 
     def save_report(self, output_file: Path = None) -> Path:
@@ -613,12 +611,12 @@ class PlatformSetupValidator:
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_file = Path(f"platform_validation_report_{self.platform_info['platform']}_{timestamp}.json")
-        
+
         summary = self._generate_summary()
-        
+
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, default=str)
-        
+
         return output_file
 
 
@@ -628,36 +626,36 @@ def main():
         validator = PlatformSetupValidator()
         summary = validator.run_all_validations()
         report_file = validator.save_report()
-        
+
         # Print final summary
         print(f"\n{'='*60}")
-        print(f"PLATFORM SETUP VALIDATION SUMMARY")
-        print(f"{'='*60}")
+        print("PLATFORM SETUP VALIDATION SUMMARY")
+        print(f"{ '='*60}")
         print(f"Platform: {summary['platform']}")
         print(f"Overall Status: {summary['overall_status'].upper()}")
         print(f"Checks: {summary['summary']['passed']}/{summary['summary']['total_checks']} passed")
         print(f"Warnings: {summary['summary']['warnings']}")
         print(f"Failures: {summary['summary']['failed']}")
         print(f"Success Rate: {summary['summary']['success_rate']:.1%}")
-        
+
         if summary['recommendations']:
-            print(f"\nRECOMMENDATIONS:")
+            print("\nRECOMMENDATIONS:")
             for rec in summary['recommendations']:
                 print(rec)
-        
+
         print(f"\nFull report saved to: {report_file}")
-        
+
         # Exit code based on validation results
         if summary['overall_status'] == 'ready':
-            print(f"\n[SUCCESS] Platform is ready for TTT implementation!")
+            print("\n[SUCCESS] Platform is ready for TTT implementation!")
             return 0
         elif summary['overall_status'] == 'ready_with_warnings':
-            print(f"\n[WARNING] Platform is ready but has warnings - review recommendations")
+            print("\n[WARNING] Platform is ready but has warnings - review recommendations")
             return 0
         else:
-            print(f"\n[ERROR] Platform needs attention before TTT implementation")
+            print("\n[ERROR] Platform needs attention before TTT implementation")
             return 1
-            
+
     except Exception as e:
         print(f"[ERROR] Error during platform validation: {e}")
         import traceback

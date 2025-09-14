@@ -11,13 +11,12 @@ import structlog
 
 from ...domain.models import ARCTask
 from ...utils.error_handling import (
-    DataNotFoundException,
-    DataCorruptionException,
-    ErrorRecovery,
     ARCBaseException,
+    DataNotFoundException,
     ErrorCode,
-    ErrorSeverity,
     ErrorContext,
+    ErrorRecovery,
+    ErrorSeverity,
 )
 from ...utils.grid_ops import MemoryProfiler
 from .arc_data_repository import ARCDataRepository
@@ -42,17 +41,17 @@ class SimpleBatchingStrategy(BatchingStrategy):
         if not tasks:
             logger.warning("create_batches_empty_tasks", strategy="simple")
             return []
-        
+
         if batch_size <= 0:
             raise ARCBaseException(
                 message=f"Invalid batch size: {batch_size}",
                 error_code=ErrorCode.VALIDATION_ERROR,
                 suggestions=["Batch size must be a positive integer"]
             )
-        
+
         task_ids = list(tasks.keys())
         batches = [task_ids[i:i + batch_size] for i in range(0, len(task_ids), batch_size)]
-        
+
         logger.info(
             "batches_created",
             strategy="simple",
@@ -60,7 +59,7 @@ class SimpleBatchingStrategy(BatchingStrategy):
             batch_size=batch_size,
             num_batches=len(batches)
         )
-        
+
         return batches
 
 
@@ -76,14 +75,14 @@ class TaskBasedBatchingStrategy(BatchingStrategy):
         if not tasks:
             logger.warning("create_batches_empty_tasks", strategy="task_based")
             return []
-        
+
         if batch_size <= 0:
             raise ARCBaseException(
                 message=f"Invalid batch size: {batch_size}",
                 error_code=ErrorCode.VALIDATION_ERROR,
                 suggestions=["Batch size must be a positive integer"]
             )
-        
+
         try:
             # Group tasks by characteristic
             groups = defaultdict(list)
@@ -120,14 +119,14 @@ class TaskBasedBatchingStrategy(BatchingStrategy):
                 group_batches = [group_tasks[i:i + batch_size]
                                for i in range(0, len(group_tasks), batch_size)]
                 batches.extend(group_batches)
-                
+
                 logger.debug(
                     "group_batched",
                     group_name=group_name,
                     group_size=len(group_tasks),
                     group_batches=len(group_batches)
                 )
-            
+
             logger.info(
                 "batches_created",
                 strategy="task_based",
@@ -138,7 +137,7 @@ class TaskBasedBatchingStrategy(BatchingStrategy):
             )
 
             return batches
-        
+
         except Exception as e:
             raise ARCBaseException(
                 message=f"Failed to create task-based batches: {str(e)}",
@@ -268,7 +267,7 @@ class ARCDataLoader:
         batch_tasks = {}
 
         failed_tasks = []
-        
+
         @ErrorRecovery.with_retry(
             max_retries=3,
             delay=0.5,
@@ -289,7 +288,7 @@ class ARCDataLoader:
                     attempt="retry"
                 )
                 raise
-        
+
         if self.num_workers == 1:
             # Sequential loading with error handling
             for task_id in task_ids:
@@ -339,7 +338,7 @@ class ARCDataLoader:
                         "Use sequential loading as fallback"
                     ]
                 ) from e
-        
+
         # Log batch loading results
         if failed_tasks:
             logger.warning(
@@ -349,7 +348,7 @@ class ARCDataLoader:
                 failed_tasks=len(failed_tasks),
                 failure_details=failed_tasks[:5]  # Log first 5 failures
             )
-        
+
         if not batch_tasks:
             raise ARCBaseException(
                 message=f"Failed to load any tasks from batch of {len(task_ids)} tasks",
@@ -397,7 +396,7 @@ class ARCDataLoader:
         """Stream all tasks from repository in batches."""
         try:
             all_task_ids = self.repository.get_task_ids(task_source)
-            
+
             if not all_task_ids:
                 logger.warning(
                     "no_tasks_found",
@@ -414,7 +413,7 @@ class ARCDataLoader:
 
             # Create simple batches since we don't have actual task objects yet
             batches = [all_task_ids[i:i + self.batch_size] for i in range(0, len(all_task_ids), self.batch_size)]
-            
+
             logger.info(
                 "streaming_tasks_started",
                 task_source=task_source,
@@ -443,7 +442,7 @@ class ARCDataLoader:
                     )
                     # Continue with next batch instead of failing completely
                     continue
-                    
+
         except Exception as e:
             raise ARCBaseException(
                 message=f"Failed to stream tasks from {task_source}: {str(e)}",
@@ -468,7 +467,7 @@ class ARCDataLoader:
             total_tasks = len(tasks)
             total_train_examples = 0
             corrupted_tasks = []
-            
+
             for task_id, task in tasks.items():
                 try:
                     total_train_examples += len(task.train_examples)
@@ -504,7 +503,7 @@ class ARCDataLoader:
             # Difficulty distribution with error handling
             difficulty_counts: dict[str, int] = defaultdict(int)
             difficulty_errors = []
-            
+
             for task_id, task in tasks.items():
                 try:
                     difficulty_counts[task.difficulty_level] += 1
@@ -523,7 +522,7 @@ class ARCDataLoader:
                     "unique_dimensions": len(set(input_dimensions)) if input_dimensions else 0,
                     "most_common": max(set(input_dimensions), key=input_dimensions.count) if input_dimensions else None,
                     "size_range": (
-                        min(h*w for h,w in input_dimensions), 
+                        min(h*w for h,w in input_dimensions),
                         max(h*w for h,w in input_dimensions)
                     ) if input_dimensions else None
                 },
@@ -534,7 +533,7 @@ class ARCDataLoader:
                     "data_integrity_score": 1.0 - (len(corrupted_tasks) + len(dimension_errors) + len(difficulty_errors)) / (3 * total_tasks) if total_tasks > 0 else 0
                 }
             }
-            
+
             # Log data quality issues
             if corrupted_tasks or dimension_errors or difficulty_errors:
                 logger.warning(
@@ -544,9 +543,9 @@ class ARCDataLoader:
                     difficulty_errors=len(difficulty_errors),
                     integrity_score=stats["data_quality"]["data_integrity_score"]
                 )
-            
+
             return stats
-            
+
         except Exception as e:
             logger.error("statistics_generation_failed", error=str(e), exc_info=True)
             raise ARCBaseException(

@@ -33,14 +33,11 @@ except ImportError:
     from ...domain.models import ARCTask
 
 from ...utils.error_handling import (
-    DataNotFoundException,
-    DataCorruptionException,
-    DataFormatException,
     ARCBaseException,
     ErrorCode,
-    ErrorSeverity,
     ErrorContext,
     ErrorRecovery,
+    ErrorSeverity,
 )
 
 logger = structlog.get_logger(__name__)
@@ -68,7 +65,7 @@ class ARCDataRepository:
                 data_path = str(data_path_obj)
 
             self.data_path = Path(data_path)
-            
+
             # Validate data path exists
             if not self.data_path.exists():
                 raise ARCBaseException(
@@ -81,11 +78,11 @@ class ARCDataRepository:
                         "Verify file system permissions"
                     ]
                 )
-            
+
             self.cache_repository = cache_repository
             self.max_workers = max_workers or min(4, multiprocessing.cpu_count())
             self.use_real_dataset = use_real_dataset
-            
+
             # Initialize task loader if available
             if ARCTaskLoader:
                 if use_real_dataset:
@@ -113,12 +110,12 @@ class ARCDataRepository:
                 "cache_hits": 0,
                 "cache_misses": 0
             }
-            
+
             # Load real dataset if using new format
             self._real_data_cache = {}
             if self.use_real_dataset:
                 self._load_real_dataset_cache()
-                
+
         except Exception as e:
             logger.error(
                 "repository_initialization_failed",
@@ -144,46 +141,46 @@ class ARCDataRepository:
             # Load training challenges and solutions
             training_challenges_file = self.data_path / "arc-agi_training_challenges.json"
             training_solutions_file = self.data_path / "arc-agi_training_solutions.json"
-            
+
             if training_challenges_file.exists() and training_solutions_file.exists():
                 with open(training_challenges_file) as f:
                     training_challenges = json.load(f)
                 with open(training_solutions_file) as f:
                     training_solutions = json.load(f)
-                
+
                 self._real_data_cache["training"] = {
                     "challenges": training_challenges,
                     "solutions": training_solutions
                 }
-            
+
             # Load evaluation challenges and solutions
             eval_challenges_file = self.data_path / "arc-agi_evaluation_challenges.json"
             eval_solutions_file = self.data_path / "arc-agi_evaluation_solutions.json"
-            
+
             if eval_challenges_file.exists() and eval_solutions_file.exists():
                 with open(eval_challenges_file) as f:
                     eval_challenges = json.load(f)
                 with open(eval_solutions_file) as f:
                     eval_solutions = json.load(f)
-                
+
                 self._real_data_cache["evaluation"] = {
                     "challenges": eval_challenges,
                     "solutions": eval_solutions
                 }
-            
+
             # Load test challenges (no solutions available)
             test_challenges_file = self.data_path / "arc-agi_test_challenges.json"
             if test_challenges_file.exists():
                 with open(test_challenges_file) as f:
                     test_challenges = json.load(f)
-                
+
                 self._real_data_cache["test"] = {
                     "challenges": test_challenges,
                     "solutions": {}
                 }
-                
+
             print(f"Loaded real ARC dataset: {len(self._real_data_cache)} data sources")
-            
+
         except Exception as e:
             print(f"Warning: Could not load real dataset cache: {e}")
             self._real_data_cache = {}
@@ -206,23 +203,23 @@ class ARCDataRepository:
                 # Load from real dataset cache
                 challenges = self._real_data_cache[task_source]["challenges"]
                 solutions = self._real_data_cache[task_source]["solutions"]
-                
+
                 if task_id not in challenges:
                     return None
-                
+
                 challenge_data = challenges[task_id]
                 solution_data = solutions.get(task_id, [])
-                
+
                 # Extract test output from solutions if available
                 test_output = None
                 if solution_data and len(solution_data) > 0:
                     test_output = solution_data[0]  # First solution
-                
+
                 # Extract test input from challenge
                 test_input = []
                 if challenge_data.get("test") and len(challenge_data["test"]) > 0:
                     test_input = challenge_data["test"][0].get("input", [])
-                
+
                 # Create ARCTask directly
                 arc_task = ARCTask(
                     task_id=task_id,
@@ -231,7 +228,7 @@ class ARCDataRepository:
                     test_input=test_input,
                     test_output=test_output
                 )
-                
+
             else:
                 # Load from legacy file structure
                 task_file = f"{task_id}.json"
@@ -275,14 +272,14 @@ class ARCDataRepository:
         if self.use_real_dataset and task_source in self._real_data_cache:
             # Load from real dataset cache
             challenges = self._real_data_cache[task_source]["challenges"]
-            solutions = self._real_data_cache[task_source]["solutions"]
-            
+            self._real_data_cache[task_source]["solutions"]
+
             task_ids = list(challenges.keys())
             if limit:
                 task_ids = task_ids[:limit]
-                
+
             print(f"Loading {len(task_ids)} tasks from real {task_source} dataset...")
-            
+
             tasks = {}
             for task_id in task_ids:
                 task = self.load_task(task_id, task_source)

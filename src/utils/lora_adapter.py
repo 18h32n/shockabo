@@ -75,11 +75,11 @@ class LoRALinear(nn.Module):
     def forward(self, x: torch.Tensor, base_output: torch.Tensor) -> torch.Tensor:
         """
         Forward pass with LoRA adaptation.
-        
+
         Args:
             x: Input tensor
             base_output: Output from the base linear layer
-            
+
         Returns:
             Adapted output tensor
         """
@@ -144,11 +144,11 @@ class LoRAConv1D(nn.Module):
     def forward(self, x: torch.Tensor, base_output: torch.Tensor) -> torch.Tensor:
         """
         Forward pass with LoRA adaptation for Conv1D.
-        
+
         Args:
             x: Input tensor
             base_output: Output from the base Conv1D layer
-            
+
         Returns:
             Adapted output tensor
         """
@@ -181,7 +181,7 @@ class LoRAAdapter:
     def __init__(self, model: nn.Module, config: LoRAConfig):
         """
         Initialize LoRA adapter.
-        
+
         Args:
             model: Base model to adapt
             config: LoRA configuration
@@ -219,7 +219,7 @@ class LoRAAdapter:
                     self._replace_linear_module(name, module, lora_layer)
 
                     logger.info(f"Applied LoRA to Linear {name} (in={module.in_features}, out={module.out_features})")
-                
+
                 elif isinstance(module, Conv1D):
                     # Store original module
                     self.original_layers[name] = module
@@ -256,7 +256,7 @@ class LoRAAdapter:
 
         # Navigate to parent module and replace
         self._replace_module_in_model(module_name, LoRALinearWrapper(original, lora))
-    
+
     def _replace_conv1d_module(self, module_name: str, original: Conv1D, lora: LoRAConv1D) -> None:
         """Replace a Conv1D module with LoRA-adapted version."""
         # Create a wrapper that combines original and LoRA
@@ -272,7 +272,7 @@ class LoRAAdapter:
 
         # Navigate to parent module and replace
         self._replace_module_in_model(module_name, LoRAConv1DWrapper(original, lora))
-    
+
     def _replace_module_in_model(self, module_name: str, new_module: nn.Module) -> None:
         """Helper to replace a module in the model."""
         parent_name = ".".join(module_name.split(".")[:-1])
@@ -376,14 +376,14 @@ def apply_lora_to_model(
 ) -> LoRAAdapter:
     """
     Apply LoRA adaptation to a model.
-    
+
     Args:
         model: Model to adapt
         rank: LoRA rank
         alpha: LoRA alpha (scaling factor)
         dropout: Dropout rate
         target_modules: List of module names to target
-        
+
     Returns:
         LoRAAdapter instance
     """

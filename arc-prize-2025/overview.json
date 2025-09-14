@@ -1,0 +1,73 @@
+{
+  "id": 91496,
+  "title": "ARC Prize 2025",
+  "url": "https://www.kaggle.com/competitions/arc-prize-2025",
+  "category": "Featured",
+  "evaluationMetric": "Accuracy (percentage of correct predictions on ARC-AGI-2 private evaluation set)",
+  "isKernelsSubmissionsOnly": false,
+  "description": "Create an AI capable of novel reasoning to achieve artificial general intelligence (AGI)",
+  "competition_type": "AGI Challenge",
+  "timeline": {
+    "launch_date": "2025-03-26",
+    "submission_deadline": "2025-11-03",
+    "paper_deadline": "2025-11-09",
+    "winners_announced": "2025-12-05"
+  },
+  "prize_structure": {
+    "total_prize_pool": 825000,
+    "grand_prize": {
+      "amount": 700000,
+      "requirement": "85% accuracy on private evaluation set",
+      "recipients": "Top 5 teams meeting requirement"
+    },
+    "paper_awards": {
+      "total": 75000,
+      "first_place": 50000,
+      "second_place": 20000,
+      "third_place": 5000
+    },
+    "top_score_awards": {
+      "total": 50000,
+      "first_place": 25000,
+      "second_to_fifth": 5000
+    },
+    "additional_prizes": 175000
+  },
+  "technical_requirements": {
+    "runtime_limit": "12 hours",
+    "hardware": "Kaggle L4x4 GPUs (96GB GPU memory)",
+    "internet_access": false,
+    "external_data_allowed": true,
+    "submission_format": "submission.json"
+  },
+  "dataset_info": {
+    "name": "ARC-AGI-2",
+    "public_training_tasks": 1000,
+    "public_evaluation_tasks": 120,
+    "semi_private_evaluation_tasks": 120,
+    "private_evaluation_tasks": 120,
+    "task_format": "JSON grids with colored pixels"
+  },
+  "scoring": {
+    "method": "Pixel-perfect match required",
+    "attempts_per_task": 2,
+    "final_score_calculation": "correct predictions / total task outputs"
+  },
+  "open_source_requirements": {
+    "code_license": "CC0 or MIT-0 for submitter code",
+    "third_party_license": "Apache-2.0, GPLv3+ allowed",
+    "timing": "Must open source before seeing final scores"
+  },
+  "key_changes_2025": [
+    "ARC-AGI-2 dataset (more difficult than ARC-AGI-1)",
+    "Enhanced open source requirements",
+    "Improved leaderboard with semi-private scoring",
+    "Doubled compute resources (L4x4 vs P100s)",
+    "Additional overfitting prevention measures"
+  ],
+  "target_accuracy": "85%",
+  "human_baseline": "73.3% - 77.2% average human performance",
+  "current_ai_sota": "53% (2024 competition best)",
+  "difficulty_level": "Extremely Hard",
+  "research_focus": "Novel reasoning and skill acquisition outside training data"
+}

@@ -1,0 +1,9 @@
+{
+  "downloaded_files": [],
+  "download_errors": [
+    "Failed to download competition data: 'KaggleApi' object has no attribute 'competitions_data_download_files'",
+    "Fallback download also failed: 'KaggleApi' object has no attribute 'competitions_data_list_files'"
+  ],
+  "download_time": "2025-08-30T21:21:44.533809",
+  "total_files": 0
+}

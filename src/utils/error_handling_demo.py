@@ -9,35 +9,35 @@ import json
 import logging
 import random
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import structlog
 
 from .error_handling import (
     ARCBaseException,
-    DataNotFoundException,
+    AuthenticationException,
     DataCorruptionException,
+    DataNotFoundException,
+    ErrorCode,
+    ErrorContext,
+    ErrorLogger,
+    ErrorResponse,
+    ErrorSeverity,
     EvaluationException,
     TaskNotFoundException,
-    AuthenticationException,
-    ErrorCode,
-    ErrorSeverity,
-    ErrorContext,
-    ErrorResponse,
-    ErrorLogger,
     create_error_response,
 )
 from .error_recovery import (
     CircuitBreaker,
     CircuitBreakerConfig,
-    RetryStrategy,
     FallbackStrategy,
     HealthMonitor,
+    RetryStrategy,
     get_circuit_breaker,
     get_health_monitor,
 )
-
 
 # Configure logging for demo
 logging.basicConfig(level=logging.INFO)
@@ -46,15 +46,15 @@ logger = structlog.get_logger(__name__)
 
 class ErrorHandlingDemo:
     """Demonstration class for error handling features."""
-    
+
     def __init__(self):
         self.error_logger = ErrorLogger()
         self.demo_results: Dict[str, Dict] = {}
-    
+
     async def run_all_demos(self) -> Dict[str, Dict]:
         """Run all error handling demonstrations."""
         logger.info("starting_error_handling_demos")
-        
+
         demos = [
             ("basic_exception_handling", self.demo_basic_exceptions),
             ("custom_arc_exceptions", self.demo_custom_exceptions),
@@ -66,46 +66,694 @@ class ErrorHandlingDemo:
             ("api_error_responses", self.demo_api_error_responses),
             ("recovery_patterns", self.demo_recovery_patterns),
         ]
-        
+
         for demo_name, demo_func in demos:
             try:
-                logger.info(f"running_demo", demo=demo_name)
+                logger.info("running_demo", demo=demo_name)
                 start_time = time.time()
-                
+
                 result = await demo_func()
-                
+
                 execution_time = time.time() - start_time
                 self.demo_results[demo_name] = {
                     "status": "success",
                     "result": result,
-                    "execution_time": execution_time
+                    "execution_time": execution_time,
                 }
-                
+
                 logger.info(
-                    f"demo_completed",
+                    "demo_completed",
                     demo=demo_name,
-                    execution_time_ms=execution_time * 1000
+                    execution_time_ms=execution_time * 1000,
                 )
-                
+
             except Exception as e:
                 execution_time = time.time() - start_time
                 self.demo_results[demo_name] = {
                     "status": "error",
                     "error": str(e),
-                    "execution_time": execution_time
+                    "execution_time": execution_time,
                 }
-                
+
                 logger.error(
-                    f"demo_failed",
+                    "demo_failed",
                     demo=demo_name,
                     error=str(e),
-                    exc_info=True
+                    exc_info=True,
                 )
-        
-        logger.info("all_demos_completed", total_demos=len(demos))\n        return self.demo_results
-    
+
+        logger.info("all_demos_completed", total_demos=len(demos))
+        return self.demo_results
+
     async def demo_basic_exceptions(self) -> Dict:
         """Demonstrate basic exception handling patterns."""
-        results = {"tests": []}\n        \n        # Test 1: Basic ARCBaseException\n        try:\n            raise ARCBaseException(\n                message=\"This is a demo exception\",\n                error_code=ErrorCode.VALIDATION_ERROR,\n                severity=ErrorSeverity.MEDIUM,\n                suggestions=[\"This is just a demo\", \"No action needed\"]\n            )\n        except ARCBaseException as e:\n            results[\"tests\"].append({\n                \"name\": \"basic_arc_exception\",\n                \"status\": \"caught\",\n                \"error_code\": e.error_code.value,\n                \"severity\": e.severity.value,\n                \"suggestions_count\": len(e.suggestions)\n            })\n        \n        # Test 2: Exception with context\n        try:\n            context = ErrorContext(\n                user_id=\"demo_user\",\n                task_id=\"demo_task_123\",\n                additional_data={\"demo\": True, \"timestamp\": datetime.now().isoformat()}\n            )\n            \n            raise DataNotFoundException(\n                \"task\",\n                \"demo_task_123\",\n                context=context\n            )\n        except DataNotFoundException as e:\n            results[\"tests\"].append({\n                \"name\": \"exception_with_context\",\n                \"status\": \"caught\",\n                \"has_context\": e.context is not None,\n                \"context_user_id\": e.context.user_id if e.context else None,\n                \"context_task_id\": e.context.task_id if e.context else None\n            })\n        \n        # Test 3: Exception chaining\n        try:\n            try:\n                # Simulate original error\n                raise ValueError(\"Original error occurred\")\n            except ValueError as original_error:\n                raise EvaluationException(\n                    \"demo_task\",\n                    \"Evaluation failed due to underlying issue\",\n                    cause=original_error\n                ) from original_error\n        except EvaluationException as e:\n            results[\"tests\"].append({\n                \"name\": \"exception_chaining\",\n                \"status\": \"caught\",\n                \"has_cause\": e.cause is not None,\n                \"cause_type\": type(e.cause).__name__ if e.cause else None\n            })\n        \n        return results
-    
-    async def demo_custom_exceptions(self) -> Dict:\n        \"\"\"Demonstrate custom ARC exception types.\"\"\"\n        results = {\"exception_types\": []}\n        \n        # Define test scenarios for different exception types\n        exception_scenarios = [\n            {\n                \"name\": \"TaskNotFoundException\",\n                \"exception\": TaskNotFoundException(\"invalid_task_id\"),\n                \"expected_code\": ErrorCode.TASK_NOT_FOUND\n            },\n            {\n                \"name\": \"DataCorruptionException\",\n                \"exception\": DataCorruptionException(\n                    \"task_file\", \n                    \"Invalid JSON format detected\"\n                ),\n                \"expected_code\": ErrorCode.DATA_CORRUPTION\n            },\n            {\n                \"name\": \"AuthenticationException\",\n                \"exception\": AuthenticationException(\"Invalid token provided\"),\n                \"expected_code\": ErrorCode.INVALID_TOKEN\n            },\n            {\n                \"name\": \"EvaluationException\",\n                \"exception\": EvaluationException(\n                    \"test_task\", \n                    \"Pixel accuracy calculation failed\"\n                ),\n                \"expected_code\": ErrorCode.EVALUATION_ERROR\n            }\n        ]\n        \n        for scenario in exception_scenarios:\n            try:\n                raise scenario[\"exception\"]\n            except ARCBaseException as e:\n                results[\"exception_types\"].append({\n                    \"name\": scenario[\"name\"],\n                    \"error_code_match\": e.error_code == scenario[\"expected_code\"],\n                    \"has_suggestions\": len(e.suggestions) > 0,\n                    \"error_id_generated\": bool(e.error_id),\n                    \"to_dict_works\": bool(e.to_dict()),\n                    \"to_response_works\": isinstance(e.to_response(), ErrorResponse)\n                })\n        \n        return results\n    \n    async def demo_error_logging(self) -> Dict:\n        \"\"\"Demonstrate structured error logging.\"\"\"\n        results = {\"logging_tests\": []}\n        \n        # Test 1: Basic error logging\n        test_exception = ARCBaseException(\n            message=\"Demo error for logging test\",\n            error_code=ErrorCode.VALIDATION_ERROR,\n            context=ErrorContext(\n                user_id=\"demo_user\",\n                additional_data={\"test\": \"logging_demo\"}\n            )\n        )\n        \n        error_id = self.error_logger.log_error(test_exception)\n        \n        results[\"logging_tests\"].append({\n            \"name\": \"basic_error_logging\",\n            \"error_id_returned\": bool(error_id),\n            \"error_id_format\": \"uuid\" if len(error_id.split(\"-\")) == 5 else \"other\"\n        })\n        \n        # Test 2: Logging with additional context\n        additional_context = {\n            \"request_ip\": \"127.0.0.1\",\n            \"user_agent\": \"Demo/1.0\",\n            \"request_path\": \"/api/demo\"\n        }\n        \n        error_id_2 = self.error_logger.log_error(\n            test_exception,\n            additional_context=additional_context\n        )\n        \n        results[\"logging_tests\"].append({\n            \"name\": \"logging_with_context\",\n            \"error_id_returned\": bool(error_id_2),\n            \"different_error_ids\": error_id != error_id_2\n        })\n        \n        return results\n    \n    async def demo_circuit_breaker(self) -> Dict:\n        \"\"\"Demonstrate circuit breaker functionality.\"\"\"\n        results = {\"circuit_breaker_tests\": []}\n        \n        # Create a circuit breaker with low thresholds for demo\n        config = CircuitBreakerConfig(\n            failure_threshold=3,\n            recovery_timeout=2,  # 2 seconds for demo\n            success_threshold=2\n        )\n        \n        circuit_breaker = get_circuit_breaker(\"demo_service\", config)\n        \n        # Test 1: Successful operations\n        async def successful_operation():\n            await asyncio.sleep(0.1)\n            return \"success\"\n        \n        try:\n            result = await circuit_breaker.call(successful_operation)\n            results[\"circuit_breaker_tests\"].append({\n                \"name\": \"successful_operation\",\n                \"status\": \"success\",\n                \"result\": result\n            })\n        except Exception as e:\n            results[\"circuit_breaker_tests\"].append({\n                \"name\": \"successful_operation\",\n                \"status\": \"error\",\n                \"error\": str(e)\n            })\n        \n        # Test 2: Failing operations to trip circuit breaker\n        async def failing_operation():\n            raise Exception(\"Simulated service failure\")\n        \n        failure_count = 0\n        for i in range(5):  # Try to trip the circuit breaker\n            try:\n                await circuit_breaker.call(failing_operation)\n            except Exception:\n                failure_count += 1\n        \n        results[\"circuit_breaker_tests\"].append({\n            \"name\": \"trip_circuit_breaker\",\n            \"failures_recorded\": failure_count,\n            \"circuit_tripped\": failure_count >= config.failure_threshold\n        })\n        \n        # Test 3: Circuit breaker should reject requests when open\n        try:\n            await circuit_breaker.call(successful_operation)\n            circuit_rejected = False\n        except ARCBaseException as e:\n            circuit_rejected = \"circuit breaker\" in str(e).lower()\n        \n        results[\"circuit_breaker_tests\"].append({\n            \"name\": \"circuit_rejection\",\n            \"rejected_when_open\": circuit_rejected\n        })\n        \n        # Get circuit breaker stats\n        stats = circuit_breaker.get_stats()\n        results[\"circuit_breaker_stats\"] = {\n            \"state\": stats[\"state\"],\n            \"total_requests\": stats[\"total_requests\"],\n            \"total_failures\": stats[\"total_failures\"]\n        }\n        \n        return results\n    \n    async def demo_retry_mechanisms(self) -> Dict:\n        \"\"\"Demonstrate retry strategies.\"\"\"\n        results = {\"retry_tests\": []}\n        \n        # Test 1: Retry with eventual success\n        attempt_count = 0\n        \n        async def eventually_succeeds():\n            nonlocal attempt_count\n            attempt_count += 1\n            if attempt_count < 3:\n                raise Exception(f\"Attempt {attempt_count} failed\")\n            return f\"Success on attempt {attempt_count}\"\n        \n        retry_strategy = RetryStrategy(\n            max_attempts=5,\n            base_delay=0.1,  # Fast for demo\n            backoff_multiplier=1.5\n        )\n        \n        try:\n            result = await retry_strategy.execute(eventually_succeeds)\n            results[\"retry_tests\"].append({\n                \"name\": \"eventual_success\",\n                \"status\": \"success\",\n                \"attempts_needed\": attempt_count,\n                \"result\": result\n            })\n        except Exception as e:\n            results[\"retry_tests\"].append({\n                \"name\": \"eventual_success\",\n                \"status\": \"failed\",\n                \"attempts_made\": attempt_count,\n                \"error\": str(e)\n            })\n        \n        # Test 2: Retry with non-retryable exception\n        async def non_retryable_failure():\n            raise ValueError(\"This should not be retried\")\n        \n        non_retry_strategy = RetryStrategy(\n            max_attempts=3,\n            non_retryable_exceptions=(ValueError,)\n        )\n        \n        try:\n            await non_retry_strategy.execute(non_retryable_failure)\n            results[\"retry_tests\"].append({\n                \"name\": \"non_retryable\",\n                \"status\": \"unexpected_success\"\n            })\n        except Exception:\n            results[\"retry_tests\"].append({\n                \"name\": \"non_retryable\",\n                \"status\": \"correctly_not_retried\"\n            })\n        \n        return results\n    \n    async def demo_fallback_strategies(self) -> Dict:\n        \"\"\"Demonstrate fallback mechanisms.\"\"\"\n        results = {\"fallback_tests\": []}\n        \n        fallback_strategy = FallbackStrategy(\"demo_data_access\")\n        \n        # Add fallback functions\n        async def primary_data_source():\n            raise Exception(\"Primary database is down\")\n        \n        async def cache_fallback():\n            await asyncio.sleep(0.1)\n            return \"data_from_cache\"\n        \n        async def static_fallback():\n            return \"default_static_data\"\n        \n        # Add fallbacks with priorities\n        fallback_strategy.add_fallback(cache_fallback, priority=2)\n        fallback_strategy.add_fallback(static_fallback, priority=1)\n        \n        # Test fallback execution\n        try:\n            result = await fallback_strategy.execute(primary_data_source)\n            results[\"fallback_tests\"].append({\n                \"name\": \"primary_fails_fallback_succeeds\",\n                \"status\": \"success\",\n                \"result\": result,\n                \"used_fallback\": result != \"primary_data\"\n            })\n        except Exception as e:\n            results[\"fallback_tests\"].append({\n                \"name\": \"primary_fails_fallback_succeeds\",\n                \"status\": \"failed\",\n                \"error\": str(e)\n            })\n        \n        # Get fallback stats\n        stats = fallback_strategy.get_stats()\n        results[\"fallback_stats\"] = {\n            \"name\": stats[\"name\"],\n            \"fallback_count\": stats[\"fallback_count\"],\n            \"primary_success_rate\": stats[\"primary_success_rate\"],\n            \"fallback_usage_rate\": stats[\"fallback_usage_rate\"]\n        }\n        \n        return results\n    \n    async def demo_health_monitoring(self) -> Dict:\n        \"\"\"Demonstrate health monitoring.\"\"\"\n        results = {\"health_tests\": []}\n        \n        health_monitor = get_health_monitor(\"demo_system\", check_interval=1)\n        \n        # Add health checks\n        database_healthy = True\n        cache_healthy = True\n        \n        def check_database():\n            return database_healthy\n        \n        def check_cache():\n            return cache_healthy\n        \n        def recover_database():\n            nonlocal database_healthy\n            database_healthy = True\n            logger.info(\"database_recovered\")\n        \n        health_monitor.add_health_check(\n            \"database\", \n            check_database, \n            recovery_func=recover_database,\n            critical=True\n        )\n        health_monitor.add_health_check(\n            \"cache\", \n            check_cache,\n            critical=False\n        )\n        \n        # Start monitoring\n        await health_monitor.start_monitoring()\n        \n        # Wait for initial health check\n        await asyncio.sleep(1.5)\n        \n        # Check initial status\n        initial_status = health_monitor.get_health_status()\n        results[\"health_tests\"].append({\n            \"name\": \"initial_healthy_status\",\n            \"overall_healthy\": initial_status[\"overall_healthy\"],\n            \"monitoring\": initial_status[\"monitoring\"]\n        })\n        \n        # Simulate database failure\n        database_healthy = False\n        await asyncio.sleep(1.5)\n        \n        # Check unhealthy status\n        unhealthy_status = health_monitor.get_health_status()\n        results[\"health_tests\"].append({\n            \"name\": \"unhealthy_detection\",\n            \"overall_healthy\": unhealthy_status[\"overall_healthy\"],\n            \"database_healthy\": unhealthy_status[\"components\"][\"database\"][\"healthy\"]\n        })\n        \n        # Wait for recovery attempt\n        await asyncio.sleep(2)\n        \n        # Check recovery\n        recovered_status = health_monitor.get_health_status()\n        results[\"health_tests\"].append({\n            \"name\": \"auto_recovery\",\n            \"overall_healthy\": recovered_status[\"overall_healthy\"],\n            \"database_healthy\": recovered_status[\"components\"][\"database\"][\"healthy\"]\n        })\n        \n        # Stop monitoring\n        await health_monitor.stop_monitoring()\n        \n        return results\n    \n    async def demo_api_error_responses(self) -> Dict:\n        \"\"\"Demonstrate API error response formatting.\"\"\"\n        results = {\"api_response_tests\": []}\n        \n        # Test 1: Convert exception to API response\n        test_exception = TaskNotFoundException(\n            \"missing_task_123\",\n            context=ErrorContext(user_id=\"api_user\")\n        )\n        \n        # This would normally be handled by middleware\n        response = create_error_response(test_exception, 404)\n        \n        results[\"api_response_tests\"].append({\n            \"name\": \"exception_to_api_response\",\n            \"status_code\": response.status_code,\n            \"has_error_id_header\": \"X-Error-ID\" in response.headers,\n            \"content_type\": \"application/json\"\n        })\n        \n        # Test 2: Verify response structure\n        try:\n            # In a real scenario, this would be JSON\n            # For demo, we'll check the structure\n            response_structure_valid = all([\n                hasattr(test_exception.to_response(), \"error_id\"),\n                hasattr(test_exception.to_response(), \"error_code\"),\n                hasattr(test_exception.to_response(), \"message\"),\n                hasattr(test_exception.to_response(), \"suggestions\")\n            ])\n            \n            results[\"api_response_tests\"].append({\n                \"name\": \"response_structure\",\n                \"structure_valid\": response_structure_valid,\n                \"error_response_serializable\": True\n            })\n        except Exception as e:\n            results[\"api_response_tests\"].append({\n                \"name\": \"response_structure\",\n                \"structure_valid\": False,\n                \"error\": str(e)\n            })\n        \n        return results\n    \n    async def demo_recovery_patterns(self) -> Dict:\n        \"\"\"Demonstrate advanced recovery patterns.\"\"\"\n        results = {\"recovery_tests\": []}\n        \n        # Test 1: Combined circuit breaker + retry + fallback\n        circuit_breaker = get_circuit_breaker(\"recovery_demo\")\n        retry_strategy = RetryStrategy(max_attempts=2, base_delay=0.1)\n        \n        async def unreliable_service():\n            if random.random() < 0.7:  # 70% failure rate\n                raise Exception(\"Service temporarily unavailable\")\n            return \"service_response\"\n        \n        async def fallback_response():\n            return \"fallback_response\"\n        \n        # Combine patterns\n        attempts = 0\n        successes = 0\n        \n        for _ in range(10):  # Try multiple times\n            try:\n                attempts += 1\n                # Try primary service with circuit breaker and retry\n                result = await retry_strategy.execute(\n                    lambda: circuit_breaker.call(unreliable_service)\n                )\n                successes += 1\n            except Exception:\n                # Use fallback\n                result = await fallback_response()\n                successes += 1\n        \n        results[\"recovery_tests\"].append({\n            \"name\": \"combined_recovery_patterns\",\n            \"attempts\": attempts,\n            \"successes\": successes,\n            \"success_rate\": successes / attempts if attempts > 0 else 0\n        })\n        \n        return results\n    \n    def generate_demo_report(self) -> str:\n        \"\"\"Generate a comprehensive demo report.\"\"\"\n        report = []\n        report.append(\"# ARC Prize Error Handling System Demo Report\")\n        report.append(f\"Generated: {datetime.now().isoformat()}\")\n        report.append(\"\\n## Demo Results Summary\\n\")\n        \n        total_demos = len(self.demo_results)\n        successful_demos = sum(1 for r in self.demo_results.values() if r[\"status\"] == \"success\")\n        \n        report.append(f\"- Total demos run: {total_demos}\")\n        report.append(f\"- Successful demos: {successful_demos}\")\n        report.append(f\"- Success rate: {successful_demos/total_demos*100:.1f}%\")\n        \n        # Detailed results\n        for demo_name, result in self.demo_results.items():\n            report.append(f\"\\n### {demo_name.replace('_', ' ').title()}\\n\")\n            report.append(f\"- Status: {result['status']}\")\n            report.append(f\"- Execution time: {result['execution_time']*1000:.2f}ms\")\n            \n            if result[\"status\"] == \"success\" and \"result\" in result:\n                # Add key metrics from each demo\n                demo_result = result[\"result\"]\n                \n                if \"tests\" in demo_result:\n                    report.append(f\"- Tests run: {len(demo_result['tests'])}\")\n                \n                if \"exception_types\" in demo_result:\n                    report.append(f\"- Exception types tested: {len(demo_result['exception_types'])}\")\n                \n                if \"circuit_breaker_stats\" in demo_result:\n                    stats = demo_result[\"circuit_breaker_stats\"]\n                    report.append(f\"- Circuit breaker state: {stats['state']}\")\n                    report.append(f\"- Total requests: {stats['total_requests']}\")\n            \n            elif result[\"status\"] == \"error\":\n                report.append(f\"- Error: {result['error']}\")\n        \n        report.append(\"\\n## Key Features Demonstrated\\n\")\n        report.append(\"- ✅ Custom exception hierarchy with error codes\")\n        report.append(\"- ✅ Structured error logging with context\")\n        report.append(\"- ✅ Circuit breaker patterns for service resilience\")\n        report.append(\"- ✅ Retry mechanisms with exponential backoff\")\n        report.append(\"- ✅ Fallback strategies for graceful degradation\")\n        report.append(\"- ✅ Health monitoring and auto-recovery\")\n        report.append(\"- ✅ API error response standardization\")\n        report.append(\"- ✅ Combined recovery patterns\")\n        \n        report.append(\"\\n## Usage Recommendations\\n\")\n        report.append(\"1. Use ARCBaseException and its subclasses for all domain-specific errors\")\n        report.append(\"2. Include ErrorContext with user_id, task_id, and relevant metadata\")\n        report.append(\"3. Implement circuit breakers for external service calls\")\n        report.append(\"4. Use retry strategies for transient failures\")\n        report.append(\"5. Set up health monitoring for critical system components\")\n        report.append(\"6. Let middleware handle error response formatting\")\n        \n        return \"\\n\".join(report)\n\n\nasync def main():\n    \"\"\"Run the error handling demonstration.\"\"\"\n    print(\"Starting ARC Prize Error Handling System Demo...\")\n    \n    demo = ErrorHandlingDemo()\n    results = await demo.run_all_demos()\n    \n    # Print summary\n    print(f\"\\nDemo completed! Results:\")\n    for demo_name, result in results.items():\n        status_emoji = \"✅\" if result[\"status\"] == \"success\" else \"❌\"\n        print(f\"{status_emoji} {demo_name}: {result['status']} ({result['execution_time']*1000:.1f}ms)\")\n    \n    # Generate and print report\n    report = demo.generate_demo_report()\n    print(\"\\n\" + \"=\"*80)\n    print(report)\n    print(\"=\"*80)\n    \n    return results\n\n\nif __name__ == \"__main__\":\n    # Run the demo\n    results = asyncio.run(main())
+        results = {"tests": []}
+
+        # Test 1: Basic ARCBaseException
+        try:
+            raise ARCBaseException(
+                message="This is a demo exception",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                severity=ErrorSeverity.MEDIUM,
+                suggestions=["This is just a demo", "No action needed"],
+            )
+        except ARCBaseException as e:
+            results["tests"].append(
+                {
+                    "name": "basic_arc_exception",
+                    "status": "caught",
+                    "error_code": e.error_code.value,
+                    "severity": e.severity.value,
+                    "suggestions_count": len(e.suggestions),
+                }
+            )
+
+        # Test 2: Exception with context
+        try:
+            context = ErrorContext(
+                user_id="demo_user",
+                task_id="demo_task_123",
+                additional_data={"demo": True, "timestamp": datetime.now().isoformat()},
+            )
+
+            raise DataNotFoundException("task", "demo_task_123", context=context)
+        except DataNotFoundException as e:
+            results["tests"].append(
+                {
+                    "name": "exception_with_context",
+                    "status": "caught",
+                    "has_context": e.context is not None,
+                    "context_user_id": e.context.user_id if e.context else None,
+                    "context_task_id": e.context.task_id if e.context else None,
+                }
+            )
+
+        # Test 3: Exception chaining
+        try:
+            try:
+                # Simulate original error
+                raise ValueError("Original error occurred")
+            except ValueError as original_error:
+                raise EvaluationException(
+                    "demo_task",
+                    "Evaluation failed due to underlying issue",
+                    cause=original_error,
+                ) from original_error
+        except EvaluationException as e:
+            results["tests"].append(
+                {
+                    "name": "exception_chaining",
+                    "status": "caught",
+                    "has_cause": e.__cause__ is not None,
+                    "cause_type": type(e.__cause__).__name__ if e.__cause__ else None,
+                }
+            )
+
+        return results
+
+    async def demo_custom_exceptions(self) -> Dict:
+        """Demonstrate custom ARC exception types."""
+        results = {"exception_types": []}
+
+        # Define test scenarios for different exception types
+        exception_scenarios = [
+            {
+                "name": "TaskNotFoundException",
+                "exception": TaskNotFoundException("invalid_task_id"),
+                "expected_code": ErrorCode.TASK_NOT_FOUND,
+            },
+            {
+                "name": "DataCorruptionException",
+                "exception": DataCorruptionException(
+                    "task_file", "Invalid JSON format detected"
+                ),
+                "expected_code": ErrorCode.DATA_CORRUPTION,
+            },
+            {
+                "name": "AuthenticationException",
+                "exception": AuthenticationException("Invalid token provided"),
+                "expected_code": ErrorCode.INVALID_TOKEN,
+            },
+            {
+                "name": "EvaluationException",
+                "exception": EvaluationException(
+                    "test_task", "Pixel accuracy calculation failed"
+                ),
+                "expected_code": ErrorCode.EVALUATION_ERROR,
+            },
+        ]
+
+        for scenario in exception_scenarios:
+            try:
+                raise scenario["exception"]
+            except ARCBaseException as e:
+                results["exception_types"].append(
+                    {
+                        "name": scenario["name"],
+                        "error_code_match": e.error_code == scenario["expected_code"],
+                        "has_suggestions": len(e.suggestions) > 0,
+                        "error_id_generated": bool(e.error_id),
+                        "to_dict_works": bool(e.to_dict()),
+                        "to_response_works": isinstance(e.to_response(), ErrorResponse),
+                    }
+                )
+
+        return results
+
+    async def demo_error_logging(self) -> Dict:
+        """Demonstrate structured error logging."""
+        results = {"logging_tests": []}
+
+        # Test 1: Basic error logging
+        test_exception = ARCBaseException(
+            message="Demo error for logging test",
+            error_code=ErrorCode.VALIDATION_ERROR,
+            context=ErrorContext(
+                user_id="demo_user",
+                additional_data={"test": "logging_demo"},
+            ),
+        )
+
+        error_id = self.error_logger.log_error(test_exception)
+
+        results["logging_tests"].append(
+            {
+                "name": "basic_error_logging",
+                "error_id_returned": bool(error_id),
+                "error_id_format": "uuid" if len(error_id.split("-")) == 5 else "other",
+            }
+        )
+
+        # Test 2: Logging with additional context
+        additional_context = {
+            "request_ip": "127.0.0.1",
+            "user_agent": "Demo/1.0",
+            "request_path": "/api/demo",
+        }
+
+        error_id_2 = self.error_logger.log_error(
+            test_exception,
+            additional_context=additional_context,
+        )
+
+        results["logging_tests"].append(
+            {
+                "name": "logging_with_context",
+                "error_id_returned": bool(error_id_2),
+                "different_error_ids": error_id != error_id_2,
+            }
+        )
+
+        return results
+
+    async def demo_circuit_breaker(self) -> Dict:
+        """Demonstrate circuit breaker functionality."""
+        results = {"circuit_breaker_tests": []}
+
+        # Create a circuit breaker with low thresholds for demo
+        config = CircuitBreakerConfig(
+            failure_threshold=3,
+            recovery_timeout=2,  # 2 seconds for demo
+            success_threshold=2,
+        )
+
+        circuit_breaker = get_circuit_breaker("demo_service", config)
+
+        # Test 1: Successful operations
+        async def successful_operation():
+            await asyncio.sleep(0.1)
+            return "success"
+
+        try:
+            result = await circuit_breaker.call(successful_operation)
+            results["circuit_breaker_tests"].append(
+                {
+                    "name": "successful_operation",
+                    "status": "success",
+                    "result": result,
+                }
+            )
+        except Exception as e:
+            results["circuit_breaker_tests"].append(
+                {
+                    "name": "successful_operation",
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
+
+        # Test 2: Failing operations to trip circuit breaker
+        async def failing_operation():
+            raise Exception("Simulated service failure")
+
+        failure_count = 0
+        for i in range(5):  # Try to trip the circuit breaker
+            try:
+                await circuit_breaker.call(failing_operation)
+            except Exception:
+                failure_count += 1
+
+        results["circuit_breaker_tests"].append(
+            {
+                "name": "trip_circuit_breaker",
+                "failures_recorded": failure_count,
+                "circuit_tripped": failure_count >= config.failure_threshold,
+            }
+        )
+
+        # Test 3: Circuit breaker should reject requests when open
+        try:
+            await circuit_breaker.call(successful_operation)
+            circuit_rejected = False
+        except ARCBaseException as e:
+            circuit_rejected = "circuit breaker" in str(e).lower()
+
+        results["circuit_breaker_tests"].append(
+            {
+                "name": "circuit_rejection",
+                "rejected_when_open": circuit_rejected,
+            }
+        )
+
+        # Get circuit breaker stats
+        stats = circuit_breaker.get_stats()
+        results["circuit_breaker_stats"] = {
+            "state": stats["state"],
+            "total_requests": stats["total_requests"],
+            "total_failures": stats["total_failures"],
+        }
+
+        return results
+
+    async def demo_retry_mechanisms(self) -> Dict:
+        """Demonstrate retry strategies."""
+        results = {"retry_tests": []}
+
+        # Test 1: Retry with eventual success
+        attempt_count = 0
+
+        async def eventually_succeeds():
+            nonlocal attempt_count
+            attempt_count += 1
+            if attempt_count < 3:
+                raise Exception(f"Attempt {attempt_count} failed")
+            return f"Success on attempt {attempt_count}"
+
+        retry_strategy = RetryStrategy(
+            max_attempts=5,
+            base_delay=0.1,  # Fast for demo
+            backoff_multiplier=1.5,
+        )
+
+        try:
+            result = await retry_strategy.execute(eventually_succeeds)
+            results["retry_tests"].append(
+                {
+                    "name": "eventual_success",
+                    "status": "success",
+                    "attempts_needed": attempt_count,
+                    "result": result,
+                }
+            )
+        except Exception as e:
+            results["retry_tests"].append(
+                {
+                    "name": "eventual_success",
+                    "status": "failed",
+                    "attempts_made": attempt_count,
+                    "error": str(e),
+                }
+            )
+
+        # Test 2: Retry with non-retryable exception
+        async def non_retryable_failure():
+            raise ValueError("This should not be retried")
+
+        non_retry_strategy = RetryStrategy(
+            max_attempts=3,
+            non_retryable_exceptions=(ValueError,),
+        )
+
+        try:
+            await non_retry_strategy.execute(non_retryable_failure)
+            results["retry_tests"].append(
+                {
+                    "name": "non_retryable",
+                    "status": "unexpected_success",
+                }
+            )
+        except Exception:
+            results["retry_tests"].append(
+                {
+                    "name": "non_retryable",
+                    "status": "correctly_not_retried",
+                }
+            )
+
+        return results
+
+    async def demo_fallback_strategies(self) -> Dict:
+        """Demonstrate fallback mechanisms."""
+        results = {"fallback_tests": []}
+
+        fallback_strategy = FallbackStrategy("demo_data_access")
+
+        # Add fallback functions
+        async def primary_data_source():
+            raise Exception("Primary database is down")
+
+        async def cache_fallback():
+            await asyncio.sleep(0.1)
+            return "data_from_cache"
+
+        async def static_fallback():
+            return "default_static_data"
+
+        # Add fallbacks with priorities
+        fallback_strategy.add_fallback(cache_fallback, priority=2)
+        fallback_strategy.add_fallback(static_fallback, priority=1)
+
+        # Test fallback execution
+        try:
+            result = await fallback_strategy.execute(primary_data_source)
+            results["fallback_tests"].append(
+                {
+                    "name": "primary_fails_fallback_succeeds",
+                    "status": "success",
+                    "result": result,
+                    "used_fallback": result != "primary_data",
+                }
+            )
+        except Exception as e:
+            results["fallback_tests"].append(
+                {
+                    "name": "primary_fails_fallback_succeeds",
+                    "status": "failed",
+                    "error": str(e),
+                }
+            )
+
+        # Get fallback stats
+        stats = fallback_strategy.get_stats()
+        results["fallback_stats"] = {
+            "name": stats["name"],
+            "fallback_count": stats["fallback_count"],
+            "primary_success_rate": stats["primary_success_rate"],
+            "fallback_usage_rate": stats["fallback_usage_rate"],
+        }
+
+        return results
+
+    async def demo_health_monitoring(self) -> Dict:
+        """Demonstrate health monitoring."""
+        results = {"health_tests": []}
+
+        health_monitor = get_health_monitor("demo_system", check_interval=1)
+
+        # Add health checks
+        database_healthy = True
+        cache_healthy = True
+
+        def check_database():
+            return database_healthy
+
+        def check_cache():
+            return cache_healthy
+
+        def recover_database():
+            nonlocal database_healthy
+            database_healthy = True
+            logger.info("database_recovered")
+
+        health_monitor.add_health_check(
+            "database",
+            check_database,
+            recovery_func=recover_database,
+            critical=True,
+        )
+        health_monitor.add_health_check(
+            "cache",
+            check_cache,
+            critical=False,
+        )
+
+        # Start monitoring
+        await health_monitor.start_monitoring()
+
+        # Wait for initial health check
+        await asyncio.sleep(1.5)
+
+        # Check initial status
+        initial_status = health_monitor.get_health_status()
+        results["health_tests"].append(
+            {
+                "name": "initial_healthy_status",
+                "overall_healthy": initial_status["overall_healthy"],
+                "monitoring": initial_status["monitoring"],
+            }
+        )
+
+        # Simulate database failure
+        database_healthy = False
+        await asyncio.sleep(1.5)
+
+        # Check unhealthy status
+        unhealthy_status = health_monitor.get_health_status()
+        results["health_tests"].append(
+            {
+                "name": "unhealthy_detection",
+                "overall_healthy": unhealthy_status["overall_healthy"],
+                "database_healthy": unhealthy_status["components"]["database"]["healthy"],
+            }
+        )
+
+        # Wait for recovery attempt
+        await asyncio.sleep(2)
+
+        # Check recovery
+        recovered_status = health_monitor.get_health_status()
+        results["health_tests"].append(
+            {
+                "name": "auto_recovery",
+                "overall_healthy": recovered_status["overall_healthy"],
+                "database_healthy": recovered_status["components"]["database"]["healthy"],
+            }
+        )
+
+        # Stop monitoring
+        await health_monitor.stop_monitoring()
+
+        return results
+
+    async def demo_api_error_responses(self) -> Dict:
+        """Demonstrate API error response formatting."""
+        results = {"api_response_tests": []}
+
+        # Test 1: Convert exception to API response
+        test_exception = TaskNotFoundException(
+            "missing_task_123",
+            context=ErrorContext(user_id="api_user"),
+        )
+
+        # This would normally be handled by middleware
+        response = create_error_response(test_exception, 404)
+
+        results["api_response_tests"].append(
+            {
+                "name": "exception_to_api_response",
+                "status_code": response.status_code,
+                "has_error_id_header": "X-Error-ID" in response.headers,
+                "content_type": "application/json",
+            }
+        )
+
+        # Test 2: Verify response structure
+        try:
+            # In a real scenario, this would be JSON
+            # For demo, we'll check the structure
+            response_structure_valid = all(
+                [
+                    hasattr(test_exception.to_response(), "error_id"),
+                    hasattr(test_exception.to_response(), "error_code"),
+                    hasattr(test_exception.to_response(), "message"),
+                    hasattr(test_exception.to_response(), "suggestions"),
+                ]
+            )
+
+            results["api_response_tests"].append(
+                {
+                    "name": "response_structure",
+                    "structure_valid": response_structure_valid,
+                    "error_response_serializable": True,
+                }
+            )
+        except Exception as e:
+            results["api_response_tests"].append(
+                {
+                    "name": "response_structure",
+                    "structure_valid": False,
+                    "error": str(e),
+                }
+            )
+
+        return results
+
+    async def demo_recovery_patterns(self) -> Dict:
+        """Demonstrate advanced recovery patterns."""
+        results = {"recovery_tests": []}
+
+        # Test 1: Combined circuit breaker + retry + fallback
+        circuit_breaker = get_circuit_breaker("recovery_demo")
+        retry_strategy = RetryStrategy(max_attempts=2, base_delay=0.1)
+
+        async def unreliable_service():
+            if random.random() < 0.7:  # 70% failure rate
+                raise Exception("Service temporarily unavailable")
+            return "service_response"
+
+        async def fallback_response():
+            return "fallback_response"
+
+        # Combine patterns
+        attempts = 0
+        successes = 0
+
+        for _ in range(10):  # Try multiple times
+            try:
+                attempts += 1
+                # Try primary service with circuit breaker and retry
+                result = await retry_strategy.execute(
+                    lambda: circuit_breaker.call(unreliable_service)
+                )
+                successes += 1
+            except Exception:
+                # Use fallback
+                result = await fallback_response()
+                successes += 1
+
+        results["recovery_tests"].append(
+            {
+                "name": "combined_recovery_patterns",
+                "attempts": attempts,
+                "successes": successes,
+                "success_rate": successes / attempts if attempts > 0 else 0,
+            }
+        )
+
+        return results
+
+    def generate_demo_report(self) -> str:
+        """Generate a comprehensive demo report."""
+        report = []
+        report.append("# ARC Prize Error Handling System Demo Report")
+        report.append(f"Generated: {datetime.now().isoformat()}")
+        report.append("
+## Demo Results Summary
+")
+
+        total_demos = len(self.demo_results)
+        successful_demos = sum(
+            1 for r in self.demo_results.values() if r["status"] == "success"
+        )
+
+        report.append(f"- Total demos run: {total_demos}")
+        report.append(f"- Successful demos: {successful_demos}")
+        report.append(f"- Success rate: {successful_demos/total_demos*100:.1f}%")
+
+        # Detailed results
+        for demo_name, result in self.demo_results.items():
+            report.append(f"
+### {demo_name.replace('_', ' ').title()}
+")
+            report.append(f"- Status: {result['status']}")
+            report.append(f"- Execution time: {result['execution_time']*1000:.2f}ms")
+
+            if result["status"] == "success" and "result" in result:
+                # Add key metrics from each demo
+                demo_result = result["result"]
+
+                if "tests" in demo_result:
+                    report.append(f"- Tests run: {len(demo_result['tests'])}")
+
+                if "exception_types" in demo_result:
+                    report.append(
+                        f"- Exception types tested: {len(demo_result['exception_types'])}"
+                    )
+
+                if "circuit_breaker_stats" in demo_result:
+                    stats = demo_result["circuit_breaker_stats"]
+                    report.append(f"- Circuit breaker state: {stats['state']}")
+                    report.append(f"- Total requests: {stats['total_requests']}")
+
+            elif result["status"] == "error":
+                report.append(f"- Error: {result['error']}")
+
+        report.append("
+## Key Features Demonstrated
+")
+        report.append("- ✅ Custom exception hierarchy with error codes")
+        report.append("- ✅ Structured error logging with context")
+        report.append("- ✅ Circuit breaker patterns for service resilience")
+        report.append("- ✅ Retry mechanisms with exponential backoff")
+        report.append("- ✅ Fallback strategies for graceful degradation")
+        report.append("- ✅ Health monitoring and auto-recovery")
+        report.append("- ✅ API error response standardization")
+        report.append("- ✅ Combined recovery patterns")
+
+        report.append("
+## Usage Recommendations
+")
+        report.append(
+            "1. Use ARCBaseException and its subclasses for all domain-specific errors"
+        )
+        report.append(
+            "2. Include ErrorContext with user_id, task_id, and relevant metadata"
+        )
+        report.append("3. Implement circuit breakers for external service calls")
+        report.append("4. Use retry strategies for transient failures")
+        report.append("5. Set up health monitoring for critical system components")
+        report.append("6. Let middleware handle error response formatting")
+
+        return "
+".join(report)
+
+
+async def main():
+    """Run the error handling demo and print the report."""
+    demo = ErrorHandlingDemo()
+    await demo.run_all_demos()
+    report = demo.generate_demo_report()
+    print(report)
+
+
+def integration_checklist() -> Dict[str, str]:
+    """Checklist for integrating error handling into existing modules."""
+    return {
+        "1_import_exceptions": "from src.utils.error_handling import ARCBaseException, TaskNotFoundException, etc.",
+        "2_replace_generic_exceptions": "Replace ValueError, Exception with specific ARC exceptions",
+        "3.1_add_context": "Create ErrorContext with relevant info (task_id, user_id, etc.)",
+        "3.2_pass_context": "Pass context object to exception constructors",
+        "4_wrap_critical_code": "Wrap critical sections (e.g., API calls) with circuit breakers or retry logic",
+        "5_use_fallback": "Implement FallbackStrategy for non-critical but desirable operations",
+        "6_add_health_checks": "Add component-specific checks to the HealthMonitor",
+        "7_configure_middleware": "Ensure FastAPI app uses the error handling and logging middleware",
+    }
+
+
+if __name__ == "__main__":
+    # Print integration guidance
+    print("ARC Prize Error Handling System Integration Guide")
+    print("=" * 60)
+
+    checklist = integration_checklist()
+    for step, description in checklist.items():
+        print(f"{step}: {description}")
+
+    print("
+" + "=" * 60)
+    print("Use setup_error_handling_system(app) to configure your FastAPI app")
+    print("Run error_handling_demo.py to see the system in action")
+    print("Check the health endpoint at /health for system status")
+
+    # Run the demo
+    results = asyncio.run(main())

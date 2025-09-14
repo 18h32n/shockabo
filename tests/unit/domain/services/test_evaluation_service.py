@@ -1,6 +1,5 @@
 """Unit tests for evaluation service with pixel-perfect accuracy calculation."""
 
-from datetime import datetime
 
 import numpy as np
 import pytest

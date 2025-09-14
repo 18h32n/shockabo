@@ -1,0 +1,242 @@
+[
+  {
+    "url": "https://arcprize.org/competitions/2025/",
+    "title": "ARC Prize 2025 Competition Details",
+    "type": "official_documentation",
+    "description": "Official competition details and requirements",
+    "relevance": "primary",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://arcprize.org/guide",
+    "title": "ARC Prize Official Guide", 
+    "type": "official_documentation",
+    "description": "Comprehensive guide to ARC-AGI and competition participation",
+    "relevance": "primary",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://arcprize.org/arc-agi",
+    "title": "ARC-AGI Overview",
+    "type": "official_documentation", 
+    "description": "Technical overview of the ARC-AGI benchmark",
+    "relevance": "primary",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://arxiv.org/abs/1911.01547",
+    "title": "On the Measure of Intelligence",
+    "type": "research_paper",
+    "description": "François Chollet's foundational paper introducing ARC-AGI",
+    "relevance": "critical",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://arxiv.org/abs/2409.01374", 
+    "title": "2024 NYU Human Performance Study on ARC-AGI",
+    "type": "research_paper",
+    "description": "Study of human performance on ARC-AGI tasks",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://github.com/arcprize/ARC-AGI-2",
+    "title": "ARC-AGI-2 Official GitHub Repository",
+    "type": "github_repository",
+    "description": "Official repository containing ARC-AGI-2 dataset and tools",
+    "relevance": "critical",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://discord.gg/9b77dPAmcA",
+    "title": "ARC Prize Discord Community",
+    "type": "community_resource",
+    "description": "Official Discord server for competition discussion and support",
+    "relevance": "high", 
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://www.kaggle.com/competitions/arc-prize-2025/discussion",
+    "title": "ARC Prize 2025 Kaggle Discussions",
+    "type": "community_resource", 
+    "description": "Kaggle discussion forum for competition participants",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://github.com/fchollet/ARC",
+    "title": "Original ARC-AGI-1 Repository", 
+    "type": "github_repository",
+    "description": "François Chollet's original ARC repository with ARC-AGI-1 dataset",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://lab42.global/arc/",
+    "title": "Lab42 ARC Challenge Solutions",
+    "type": "research_resource",
+    "description": "Research lab's approaches and solutions to ARC challenges",
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://paperswithcode.com/sota/abstract-reasoning-on-arc",
+    "title": "Papers With Code - ARC State of the Art",
+    "type": "research_aggregator", 
+    "description": "Collection of research papers and benchmarks on ARC",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://huggingface.co/datasets/ARC-AGI", 
+    "title": "ARC-AGI Dataset on Hugging Face",
+    "type": "dataset_resource",
+    "description": "ARC-AGI dataset hosted on Hugging Face Hub",
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=WbCPfTScBJE",
+    "title": "François Chollet - ARC Prize 2024 Overview",
+    "type": "video_resource",
+    "description": "François Chollet explaining the ARC Prize challenge and goals",
+    "relevance": "high", 
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://colab.research.google.com/github/fchollet/ARC/blob/master/ARC_visualization.ipynb",
+    "title": "ARC Task Visualization Notebook",
+    "type": "google_colab",
+    "description": "Interactive notebook for visualizing and exploring ARC tasks",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://twitter.com/fchollet",
+    "title": "François Chollet Twitter",
+    "type": "social_media",
+    "description": "Updates and insights from ARC-AGI creator François Chollet", 
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://twitter.com/arcprize", 
+    "title": "ARC Prize Official Twitter",
+    "type": "social_media",
+    "description": "Official updates from the ARC Prize competition",
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://openai.com/research/solving-arc",
+    "title": "OpenAI's Approach to Solving ARC",
+    "type": "research_blog",
+    "description": "OpenAI's research on program synthesis approaches for ARC",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://deepmind.google/discover/blog/competitive-programming-with-alphacode/",
+    "title": "DeepMind AlphaCode - Related Programming Research",
+    "type": "research_blog",
+    "description": "DeepMind's work on AI code generation relevant to ARC approaches",
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://www.anthropic.com/index/core-views-on-ai-safety",
+    "title": "Anthropic's Views on AI Safety and AGI",
+    "type": "research_blog", 
+    "description": "Relevant perspective on AGI development and safety considerations",
+    "relevance": "low",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://www.kaggle.com/datasets/arcprize/arc-agi-2-dataset",
+    "title": "ARC-AGI-2 Dataset on Kaggle",
+    "type": "dataset_resource",
+    "description": "Official ARC-AGI-2 dataset hosted on Kaggle",
+    "relevance": "critical",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://www.kaggle.com/code/mehrankazemi/arc-prize-2025-starter-notebook",
+    "title": "ARC Prize 2025 Starter Notebook",
+    "type": "kaggle_notebook",
+    "description": "Community starter notebook for ARC Prize 2025 competition",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://www.kaggle.com/code/ironbar/icecuber-simple-baseline-for-arc-prize-2025",
+    "title": "Simple Baseline Solution (Icecuber)",
+    "type": "kaggle_notebook", 
+    "description": "Baseline solution achieving ~21% accuracy from 2020 winner",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://github.com/michaelhodel/arc-dsl",
+    "title": "ARC Domain-Specific Language Implementation",
+    "type": "github_repository",
+    "description": "DSL-based program synthesis approach for ARC tasks",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://github.com/top-quarks/ARC-solution",
+    "title": "Top Quarks ARC Solution (2024)",
+    "type": "github_repository", 
+    "description": "High-performing solution from ARC Prize 2024 competition",
+    "relevance": "high",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://arc-agi-test.vercel.app/",
+    "title": "Interactive ARC-AGI Task Interface",
+    "type": "web_application",
+    "description": "Web interface for solving and analyzing ARC-AGI tasks manually",
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://neoneye.github.io/arc/",
+    "title": "Simon Strandgaard's ARC Solver",
+    "type": "web_application",
+    "description": "Web-based ARC task solver and analysis tool",
+    "relevance": "medium", 
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://github.com/neoneye/simon-arc-lab",
+    "title": "Simon ARC Lab Repository",
+    "type": "github_repository",
+    "description": "Comprehensive ARC analysis and solving toolkit",
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://www.nature.com/articles/s41586-021-03819-2",
+    "title": "Program Synthesis with Large Language Models",
+    "type": "research_paper",
+    "description": "Relevant research on program synthesis approaches applicable to ARC",
+    "relevance": "medium",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://proceedings.mlr.press/v139/ellis21a.html",
+    "title": "DreamCoder: Growing generalizable, interpretable knowledge",
+    "type": "research_paper",
+    "description": "Program synthesis approach relevant to ARC-style reasoning",
+    "relevance": "medium", 
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  },
+  {
+    "url": "https://openreview.net/forum?id=Skt6nRB7FS",
+    "title": "Neural Module Networks for Visual Reasoning",
+    "type": "research_paper",
+    "description": "Neural architecture approaches relevant to visual reasoning in ARC",
+    "relevance": "low",
+    "last_crawled": "2025-08-30T21:21:45.000Z"
+  }
+]

@@ -9,9 +9,10 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
+
 from src.domain.models import (
     ARCTask,
     ARCTaskSolution,
@@ -19,14 +20,7 @@ from src.domain.models import (
     StrategyType,
     TTTAdaptation,
 )
-from src.utils.ttt_data_conversion import (
-    TTTDataConverter, 
-    AugmentationType
-)
-from src.utils.ttt_methodology import (
-    MIT_TTTStrategy,
-    TTTTrainingConfig
-)
+from src.utils.ttt_methodology import MIT_TTTStrategy
 
 
 @dataclass
@@ -38,12 +32,12 @@ class TTTConfig:
     device: str = "auto"
     quantization: bool = True
     mixed_precision: bool = True
-    
+
     # MIT TTT specific parameters
     lora_rank: int = 64  # MIT uses rank 64
     lora_alpha: int = 16
     lora_dropout: float = 0.1
-    
+
     # Training parameters
     learning_rate: float = 5e-5
     per_instance_lr: float = 1e-4
@@ -51,39 +45,39 @@ class TTTConfig:
     per_instance_epochs: int = 1
     batch_size: int = 2
     gradient_accumulation_steps: int = 1
-    
+
     # Self-consistency parameters
     permute_n: int = 1
     temperature: float = 0.0
-    
+
     # Augmentation configuration
     use_basic_augmentation: bool = True
     use_size_augmentation: bool = False
     use_chain_augmentation: bool = False
-    
+
     # Memory and performance
     max_length: int = 2048
     gradient_checkpointing: bool = True
     memory_limit_mb: float = 10240
     max_training_time: float = 300.0
-    
+
     # Paths
     checkpoint_dir: Path = Path("data/models/ttt")
     cache_dir: Path = Path("data/cache/ttt")
-    config_path: Optional[Path] = Path("configs/strategies/ttt.yaml")
-    
+    config_path: Path | None = Path("configs/strategies/ttt.yaml")
+
     @classmethod
     def from_yaml(cls, config_path: Path) -> "TTTConfig":
         """Load configuration from YAML file."""
         if not config_path.exists():
             return cls()
-        
-        with open(config_path, 'r') as f:
+
+        with open(config_path) as f:
             config_data = yaml.safe_load(f)
-        
+
         # Map YAML structure to config fields
         kwargs = {}
-        
+
         if 'model' in config_data:
             model_config = config_data['model']
             kwargs.update({
@@ -92,7 +86,7 @@ class TTTConfig:
                 'quantization': model_config.get('quantization', True),
                 'max_length': model_config.get('max_length', 2048)
             })
-        
+
         if 'training' in config_data:
             training_config = config_data['training']
             kwargs.update({
@@ -105,7 +99,7 @@ class TTTConfig:
                 'memory_limit_mb': training_config.get('memory_limit_mb', 10240),
                 'max_training_time': training_config.get('max_training_time', 300.0)
             })
-        
+
         if 'lora' in config_data:
             lora_config = config_data['lora']
             kwargs.update({
@@ -113,13 +107,13 @@ class TTTConfig:
                 'lora_alpha': lora_config.get('alpha', 16),
                 'lora_dropout': lora_config.get('dropout', 0.1)
             })
-        
+
         if 'inference' in config_data:
             inference_config = config_data['inference']
             kwargs.update({
                 'temperature': inference_config.get('temperature', 0.0)
             })
-        
+
         return cls(**kwargs)
 
 
@@ -129,20 +123,20 @@ class TTTAdapter:
     def __init__(self, config: TTTConfig | None = None):
         """Initialize MIT TTT adapter with configuration."""
         self.config = config or TTTConfig()
-        
+
         # Load configuration from YAML if path provided
         if self.config.config_path and self.config.config_path.exists():
             self.config = TTTConfig.from_yaml(self.config.config_path)
-        
+
         # Create TTT training configuration
         self.ttt_config = self._create_ttt_training_config()
-        
+
         # Initialize MIT TTT strategy
         self.mit_ttt_strategy = MIT_TTTStrategy(self.ttt_config)
-        
+
         # Track adaptations
-        self.adaptations: Dict[str, TTTAdaptation] = {}
-        
+        self.adaptations: dict[str, TTTAdaptation] = {}
+
         # Ensure directories exist
         self.config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.config.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -201,10 +195,10 @@ class TTTAdapter:
     def adapt_to_task(self, task: ARCTask) -> TTTAdaptation:
         """
         Adapt model to specific task using test-time training.
-        
+
         Args:
             task: ARC task to adapt to
-            
+
         Returns:
             TTTAdaptation containing adapted model information
         """
@@ -236,12 +230,12 @@ class TTTAdapter:
         total_loss = 0.0
         num_steps = 0
         best_loss = float('inf')
-        
+
         # Training loop
         self.model.train()
-        for epoch in range(self.config.num_epochs):
+        for _epoch in range(self.config.num_epochs):
             epoch_loss = 0.0
-            
+
             for example in training_examples:
                 # Tokenize input and output
                 input_ids = self.tokenizer.encode(
@@ -251,21 +245,21 @@ class TTTAdapter:
                     truncation=True,
                     padding="max_length",
                 ).to(self.device)
-                
+
                 # Forward pass
                 outputs = self.model(input_ids=input_ids, labels=input_ids)
                 loss = outputs.loss
-                
+
                 # Backward pass
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
-                
+
                 # Track metrics
                 epoch_loss += loss.item()
                 total_loss += loss.item()
                 num_steps += 1
-            
+
             avg_epoch_loss = epoch_loss / len(training_examples)
             if avg_epoch_loss < best_loss:
                 best_loss = avg_epoch_loss
@@ -275,7 +269,7 @@ class TTTAdapter:
 
         # Calculate adaptation time
         adaptation_time = time.time() - adaptation_start
-        
+
         # Create adaptation record
         adaptation = TTTAdaptation(
             adaptation_id=adaptation_id,
@@ -296,7 +290,7 @@ class TTTAdapter:
         # Store adaptation and LoRA adapter
         self.adaptations[task.task_id] = adaptation
         self.lora_adapters[task.task_id] = lora_adapter
-        
+
         # Set model back to eval mode
         self.model.eval()
 
@@ -305,10 +299,10 @@ class TTTAdapter:
     def solve(self, task: ARCTask) -> ARCTaskSolution:
         """
         Solve ARC task using TTT-adapted model.
-        
+
         Args:
             task: ARC task to solve
-            
+
         Returns:
             Solution with predictions and metadata
         """
@@ -403,10 +397,10 @@ class TTTAdapter:
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
-        
+
         # Decode output
         generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
+
         # Extract the output grid from generated text
         # Look for the output section after "Output:"
         output_start = generated_text.find("Output:\n") + len("Output:\n")
