@@ -511,6 +511,7 @@ class OptimizedModelWrapper:
             accumulation_steps=config.gradient_accumulation_steps
         )
         self.memory_monitor = AdvancedMemoryMonitor()
+        self.checkpointed_memory_manager = None
         
         self._apply_optimizations()
     
@@ -537,21 +538,87 @@ class OptimizedModelWrapper:
         logger.info("Memory optimizations applied successfully")
     
     def _apply_gradient_checkpointing(self):
-        """Apply selective gradient checkpointing."""
+        """Apply selective gradient checkpointing with enhanced control."""
+        from src.utils.memory_manager import GradientCheckpointingManager, MemoryManager
+        
+        # Enable basic gradient checkpointing
         if hasattr(self.model, 'gradient_checkpointing_enable'):
             self.model.gradient_checkpointing_enable()
-            logger.info("Enabled gradient checkpointing")
+            logger.info("Enabled basic gradient checkpointing")
         
-        # For more granular control, implement layer-specific checkpointing
-        if hasattr(self.model, 'encoder') and hasattr(self.model.encoder, 'layer'):
-            layers = self.model.encoder.layer
-            checkpoint_every = max(1, int(1.0 / self.config.gradient_checkpointing_ratio))
+        # Apply advanced selective checkpointing
+        try:
+            # Create memory manager for checkpointing
+            device = next(self.model.parameters()).device
+            memory_manager = MemoryManager(
+                device=device,
+                memory_limit_gb=24.0,  # 8B model limit
+                enable_monitoring=False
+            )
             
-            for i, layer in enumerate(layers):
-                if i % checkpoint_every == 0:
-                    layer.gradient_checkpointing = True
+            # Apply selective checkpointing based on config
+            checkpoint_every = max(1, int(1.0 / self.config.gradient_checkpointing_ratio))
+            checkpointed_count = memory_manager.enable_selective_checkpointing(
+                self.model,
+                layers_to_checkpoint=checkpoint_every
+            )
+            
+            if checkpointed_count > 0:
+                self.checkpointed_memory_manager = memory_manager
+                logger.info(
+                    f"Enhanced selective checkpointing: {checkpointed_count} layers "
+                    f"(every {checkpoint_every} layers, ratio: {self.config.gradient_checkpointing_ratio:.2f})"
+                )
+                
+                # Estimate memory savings
+                input_size = (2, 512)  # Typical batch size and sequence length
+                savings_estimate = memory_manager.estimate_memory_savings(self.model, input_size)
+                logger.info(
+                    f"Estimated memory savings: {savings_estimate.get('estimated_savings_mb', 0):.1f}MB "
+                    f"({savings_estimate.get('savings_percentage', 0):.1f}%)"
+                )
+            else:
+                logger.warning("No layers were successfully checkpointed")
+                
+        except Exception as e:
+            logger.warning(f"Advanced checkpointing failed, using basic implementation: {e}")
+            
+            # Fallback to basic layer-specific checkpointing
+            self._apply_fallback_checkpointing()
+    
+    def _apply_fallback_checkpointing(self):
+        """Fallback gradient checkpointing implementation."""
+        checkpoint_every = max(1, int(1.0 / self.config.gradient_checkpointing_ratio))
+        checkpointed_layers = 0
+        
+        # Try different model architectures
+        for attr_path in [
+            ('model', 'layers'),      # Llama-style
+            ('transformer', 'h'),     # GPT-style  
+            ('encoder', 'layer'),     # BERT-style
+            ('layers',),              # Direct access
+        ]:
+            try:
+                obj = self.model
+                for attr in attr_path:
+                    obj = getattr(obj, attr)
+                
+                layers = list(obj)
+                for i, layer in enumerate(layers):
+                    if i % checkpoint_every == 0:
+                        if hasattr(layer, 'gradient_checkpointing'):
+                            layer.gradient_checkpointing = True
+                        checkpointed_layers += 1
+                
+                if checkpointed_layers > 0:
+                    logger.info(f"Fallback checkpointing: {checkpointed_layers}/{len(layers)} layers")
+                    break
                     
-            logger.info(f"Applied selective checkpointing to {len(layers) // checkpoint_every} layers")
+            except (AttributeError, TypeError):
+                continue
+        
+        if checkpointed_layers == 0:
+            logger.warning("Could not apply selective checkpointing to any layers")
     
     def _apply_activation_checkpointing(self):
         """Apply activation checkpointing."""
@@ -583,6 +650,13 @@ class OptimizedModelWrapper:
             yield self
         finally:
             self.memory_monitor.stop_monitoring_thread()
+            
+            # Clean up checkpointed memory manager
+            if self.checkpointed_memory_manager is not None:
+                try:
+                    self.checkpointed_memory_manager.disable_checkpointing()
+                except Exception as e:
+                    logger.warning(f"Failed to clean up checkpointed memory manager: {e}")
     
     def optimized_forward(
         self,
@@ -668,6 +742,11 @@ class OptimizedModelWrapper:
                 "accumulated_loss": self.gradient_accumulator.accumulated_loss,
             },
             "memory_monitor": self.memory_monitor.get_memory_stats(),
+            "checkpointing_stats": (
+                self.checkpointed_memory_manager.get_checkpointing_stats()
+                if self.checkpointed_memory_manager is not None
+                else {"checkpointing_enabled": False}
+            ),
         }
 
 
