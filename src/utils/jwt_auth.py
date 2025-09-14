@@ -30,7 +30,7 @@ class JWTConfig:
             logger.warning("jwt_secret_generated", message="Using generated JWT secret. Set JWT_SECRET_KEY in production.")
 
         self.algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
-        self.access_token_expire_minutes = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+        self.access_token_expire_minutes = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
         self.refresh_token_expire_days = int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
         self.issuer = os.environ.get("JWT_ISSUER", "arc-evaluation-system")
         self.audience = os.environ.get("JWT_AUDIENCE", "arc-evaluation-api")
