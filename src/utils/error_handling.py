@@ -9,10 +9,21 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 import structlog
-from fastapi import HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from starlette.middleware.base import BaseHTTPMiddleware
+
+# Handle optional dependencies
+try:
+    from fastapi import HTTPException, Request, Response, status
+    from fastapi.responses import JSONResponse
+    from pydantic import BaseModel
+    from starlette.middleware.base import BaseHTTPMiddleware
+except ImportError:
+    # Create minimal replacements for when FastAPI is not available
+    class BaseModel:
+        pass
+    class BaseHTTPMiddleware:
+        pass
+    HTTPException = Exception
+    JSONResponse = dict
 
 logger = structlog.get_logger(__name__)
 
@@ -65,6 +76,10 @@ class ErrorCode(str, Enum):
     SYSTEM_TIMEOUT = "SYS_002"
     SYSTEM_INTERNAL_ERROR = "SYS_003"
     SYSTEM_CONFIGURATION_ERROR = "SYS_004"
+    
+    # Data processing
+    DATA_NOT_FOUND = "DATA_001"
+    INITIALIZATION_ERROR = "INIT_001"
     
     # WebSocket
     WEBSOCKET_CONNECTION_FAILED = "WS_001"
@@ -148,6 +163,56 @@ class ExperimentError(BaseEvaluationError):
     
     def __init__(self, message: str, code: ErrorCode = ErrorCode.EXPERIMENT_FAILED, **kwargs):
         super().__init__(message, code, **kwargs)
+
+
+# Additional error classes for ARC data processing compatibility
+class DataNotFoundException(BaseEvaluationError):
+    """Data not found errors."""
+    
+    def __init__(self, message: str, code: ErrorCode = ErrorCode.TASK_NOT_FOUND, **kwargs):
+        super().__init__(message, code, **kwargs)
+
+
+class DataCorruptionException(BaseEvaluationError):
+    """Data corruption errors."""
+    
+    def __init__(self, message: str, code: ErrorCode = ErrorCode.TASK_INVALID_INPUT, **kwargs):
+        super().__init__(message, code, **kwargs)
+
+
+class DataFormatException(BaseEvaluationError):
+    """Data format errors."""
+    
+    def __init__(self, message: str, code: ErrorCode = ErrorCode.VALIDATION_INVALID_FORMAT, **kwargs):
+        super().__init__(message, code, **kwargs)
+
+
+class ARCBaseException(BaseEvaluationError):
+    """Base ARC processing exception."""
+    pass
+
+
+class ErrorSeverity(Enum):
+    """Error severity levels."""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class ErrorContext:
+    """Error context information."""
+    
+    def __init__(self, operation: str, **kwargs):
+        self.operation = operation
+        self.data = kwargs
+
+
+class ErrorRecovery(Enum):
+    """Error recovery actions."""
+    RETRY = "retry"
+    FALLBACK = "fallback"
+    FAIL_FAST = "fail_fast"
 
 
 class DatabaseError(BaseEvaluationError):

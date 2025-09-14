@@ -39,7 +39,7 @@ class PlatformDetector:
             platform=Platform.KAGGLE,
             gpu_hours_limit=30,
             reset_frequency="weekly",
-            max_memory_gb=32,
+            max_memory_gb=32,  # 24GB GPU + 8GB system RAM
             has_persistent_storage=True,
             setup_script="kaggle_setup.py"
         ),
@@ -63,7 +63,7 @@ class PlatformDetector:
             platform=Platform.LOCAL,
             gpu_hours_limit=9999,  # No limit for local
             reset_frequency="never",
-            max_memory_gb=16,  # Fixed value for consistent testing
+            max_memory_gb=32,  # Increased for 8B model support
             has_persistent_storage=True,
             setup_script="local_setup.py"
         )
@@ -118,20 +118,115 @@ class PlatformDetector:
             return False
 
     @staticmethod
+    def get_gpu_memory_info() -> dict[str, Any]:
+        """Get GPU memory information."""
+        gpu_info = {
+            "gpu_available": False,
+            "gpu_count": 0,
+            "gpu_memory_total_mb": 0,
+            "gpu_memory_available_mb": 0,
+            "gpu_names": [],
+        }
+        
+        try:
+            import torch
+            if torch.cuda.is_available():
+                gpu_info["gpu_available"] = True
+                gpu_info["gpu_count"] = torch.cuda.device_count()
+                
+                for i in range(torch.cuda.device_count()):
+                    props = torch.cuda.get_device_properties(i)
+                    gpu_info["gpu_names"].append(props.name)
+                    
+                    # Get memory info for first GPU
+                    if i == 0:
+                        total_memory = props.total_memory / (1024 * 1024)  # Convert to MB
+                        reserved_memory = torch.cuda.memory_reserved(i) / (1024 * 1024)
+                        allocated_memory = torch.cuda.memory_allocated(i) / (1024 * 1024)
+                        
+                        gpu_info["gpu_memory_total_mb"] = total_memory
+                        gpu_info["gpu_memory_available_mb"] = total_memory - reserved_memory
+                        gpu_info["gpu_memory_allocated_mb"] = allocated_memory
+                        
+        except ImportError:
+            pass
+            
+        return gpu_info
+    
+    @staticmethod
+    def validate_8b_model_requirements() -> dict[str, Any]:
+        """Validate system requirements for 8B model with QLoRA."""
+        gpu_info = PlatformDetector.get_gpu_memory_info()
+        platform_info = PlatformDetector.get_platform_info()
+        
+        # Requirements for Llama-3 8B with 4-bit quantization
+        min_gpu_memory_mb = 6000   # 6GB minimum with QLoRA
+        recommended_gpu_memory_mb = 8000  # 8GB recommended
+        optimal_gpu_memory_mb = 24000     # 24GB optimal
+        
+        validation = {
+            "platform": platform_info.platform.value,
+            "gpu_available": gpu_info["gpu_available"],
+            "gpu_memory_total_mb": gpu_info["gpu_memory_total_mb"],
+            "gpu_memory_available_mb": gpu_info["gpu_memory_available_mb"],
+            "meets_minimum": False,
+            "meets_recommended": False,
+            "meets_optimal": False,
+            "memory_level": "insufficient",
+            "recommendations": [],
+        }
+        
+        if gpu_info["gpu_available"] and gpu_info["gpu_memory_total_mb"] > 0:
+            available_memory = gpu_info["gpu_memory_available_mb"]
+            
+            validation["meets_minimum"] = available_memory >= min_gpu_memory_mb
+            validation["meets_recommended"] = available_memory >= recommended_gpu_memory_mb
+            validation["meets_optimal"] = available_memory >= optimal_gpu_memory_mb
+            
+            if validation["meets_optimal"]:
+                validation["memory_level"] = "optimal"
+                validation["recommendations"].append("System has optimal memory for 8B model")
+            elif validation["meets_recommended"]:
+                validation["memory_level"] = "recommended"
+                validation["recommendations"].append("System has recommended memory for 8B model")
+            elif validation["meets_minimum"]:
+                validation["memory_level"] = "minimum"
+                validation["recommendations"].extend([
+                    "System meets minimum requirements",
+                    "Consider using gradient checkpointing",
+                    "Use batch size 1 for training"
+                ])
+            else:
+                validation["recommendations"].extend([
+                    "Insufficient GPU memory for 8B model",
+                    "Consider using smaller model (1B or 3B)",
+                    "Upgrade to GPU with more memory",
+                    "Use CPU-only mode (very slow)"
+                ])
+        else:
+            validation["recommendations"].append("No GPU available, CPU-only mode will be very slow")
+            
+        return validation
+    
+    @staticmethod
     def get_resource_limits() -> dict[str, Any]:
-        """Get current platform resource limits."""
+        """Get current platform resource limits with 8B model validation."""
         platform_info = PlatformDetector.get_platform_info()
         memory = psutil.virtual_memory()
+        gpu_info = PlatformDetector.get_gpu_memory_info()
+        model_validation = PlatformDetector.validate_8b_model_requirements()
 
         return {
             "platform": platform_info.platform.value,
-            "gpu_available": PlatformDetector.is_gpu_available(),
+            "gpu_available": gpu_info["gpu_available"],
             "gpu_hours_limit": platform_info.gpu_hours_limit,
             "max_memory_gb": platform_info.max_memory_gb,
             "available_memory_gb": memory.available // (1024**3),
             "total_memory_gb": memory.total // (1024**3),
             "cpu_cores": psutil.cpu_count(),
             "has_persistent_storage": platform_info.has_persistent_storage,
+            "gpu_info": gpu_info,
+            "model_8b_validation": model_validation,
         }
 
 
@@ -198,16 +293,59 @@ class ConfigManager:
             "resources": PlatformDetector.get_resource_limits(),
         }
 
-        # Apply memory-based adjustments
+        # Apply memory-based adjustments for 8B model
         available_memory = psutil.virtual_memory().available // (1024**3)
+        model_validation = PlatformDetector.validate_8b_model_requirements()
+        
+        overrides["model"] = overrides.get("model", {})
+        
+        # Configure based on GPU memory availability
+        if model_validation["meets_optimal"]:
+            # Optimal configuration for 24GB+ GPU
+            overrides["model"].update({
+                "name": "meta-llama/Llama-3-8B",
+                "batch_size": 2,
+                "gradient_accumulation_steps": 1,
+                "load_in_4bit": True,
+                "bnb_4bit_quant_type": "nf4",
+                "use_flash_attention": True,
+            })
+        elif model_validation["meets_recommended"]:
+            # Recommended configuration for 8GB+ GPU
+            overrides["model"].update({
+                "name": "meta-llama/Llama-3-8B",
+                "batch_size": 1,
+                "gradient_accumulation_steps": 2,
+                "load_in_4bit": True,
+                "bnb_4bit_quant_type": "nf4",
+                "gradient_checkpointing": True,
+                "use_flash_attention": True,
+            })
+        elif model_validation["meets_minimum"]:
+            # Minimum configuration for 6GB+ GPU
+            overrides["model"].update({
+                "name": "meta-llama/Llama-3-8B",
+                "batch_size": 1,
+                "gradient_accumulation_steps": 4,
+                "load_in_4bit": True,
+                "bnb_4bit_quant_type": "nf4",
+                "gradient_checkpointing": True,
+                "use_flash_attention": True,
+                "max_sequence_length": 1024,  # Reduce context length
+            })
+        else:
+            # Fallback to smaller model
+            overrides["model"].update({
+                "name": "meta-llama/Llama-3.2-1B",
+                "batch_size": min(self._config.get("model", {}).get("batch_size", 32), 8),
+                "max_sequence_length": min(self._config.get("model", {}).get("max_sequence_length", 2048), 1024),
+            })
+        
+        # Additional memory constraints for system RAM
         if available_memory < 4:
-            # Reduce batch sizes and model parameters for low-memory environments
-            overrides["model"] = overrides.get("model", {})
-            overrides["model"]["batch_size"] = min(
-                self._config.get("model", {}).get("batch_size", 32), 8
-            )
-            overrides["model"]["max_sequence_length"] = min(
-                self._config.get("model", {}).get("max_sequence_length", 2048), 1024
+            overrides["model"]["batch_size"] = 1
+            overrides["model"]["gradient_accumulation_steps"] = max(
+                overrides["model"].get("gradient_accumulation_steps", 1), 2
             )
 
         # Apply GPU-based adjustments

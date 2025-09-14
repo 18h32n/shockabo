@@ -2,68 +2,88 @@
 # Based on MIT research: "The Surprising Effectiveness of Test-Time Training for Abstract Reasoning"
 
 model:
-  name: "meta-llama/Llama-3.2-1B"  # 1B parameter model for baseline (MIT used Llama3-8B)
+  name: "meta-llama/Llama-3-8B"  # 8B parameter model as per MIT research
   device: "auto"  # Automatically select GPU/CPU
-  quantization: true  # Enable 8-bit quantization for memory efficiency
+  quantization: true  # Enable quantization for memory efficiency
+  load_in_4bit: true  # Enable 4-bit quantization (QLoRA)
+  bnb_4bit_quant_type: "nf4"  # NF4 quantization format
+  bnb_4bit_compute_dtype: "float16"  # Compute dtype for quantized layers
+  bnb_4bit_use_double_quant: true  # Double quantization for better memory
   max_length: 2048
   cache_dir: "data/models"
   mixed_precision: true  # Enable BF16 mixed precision as per MIT research
+  use_flash_attention: true  # Enable Flash Attention for efficiency
 
 training:
-  # MIT TTT Training hyperparameters
+  # MIT TTT Training hyperparameters for 8B model - Optimized for 53%+ validation accuracy
   learning_rate: 5e-5  # MIT base learning rate for fine-tuning
   per_instance_lr: 1e-4  # MIT learning rate for per-instance adaptation
-  num_epochs: 2  # MIT uses 2-3 epochs for base training
-  per_instance_epochs: 1  # MIT uses 1-2 epochs for per-instance training
-  batch_size: 2  # MIT uses batch size 2 for TTT
-  gradient_accumulation_steps: 1  # MIT minimal accumulation
+  num_epochs: 3  # Increased for better 8B model convergence to 53%+
+  per_instance_epochs: 2  # Increased for better per-instance adaptation
+  batch_size: 1  # Memory efficient for 8B model
+  gradient_accumulation_steps: 4  # Increased for effective batch size of 4
   warmup_ratio: 0.1  # 10% warmup as per MIT research
   max_grad_norm: 1.0
   
-  # MIT TTT specific settings
-  max_training_time: 300  # 5 minutes per task (MIT constraint)
-  target_accuracy: 0.4  # 40% target accuracy
-  memory_limit_mb: 10240  # 10GB memory limit
-  max_examples: 5  # Maximum training examples per task
+  # MIT TTT specific settings for 8B model - 53%+ validation target
+  max_training_time: 1800  # 30 minutes per task for better convergence
+  target_accuracy: 0.53  # 53% target accuracy for validation set
+  memory_limit_mb: 24576  # 24GB memory limit for 8B model
+  max_examples: 8  # Increased training examples for better learning
+  validation_split: 0.2  # Use 20% of training data for validation
+  early_stopping_patience: 5  # More patience for 8B model convergence
   
-  # Optimization settings (MIT research)
+  # Optimization settings (MIT research) - Enhanced for 8B
   mixed_precision: true  # Enable BF16 mixed precision
   gradient_checkpointing: true  # Enable gradient checkpointing for memory
+  use_flash_attention: true  # Enable Flash Attention for efficiency
+  dataloader_num_workers: 0  # Reduce workers for memory efficiency
 
 lora:
-  # MIT TTT LoRA adaptation settings
-  rank: 64  # MIT uses rank 64 for better capacity
-  alpha: 16  # MIT alpha setting
-  dropout: 0.1
-  target_modules:  # Support both GPT-2 and Llama architectures
-    # GPT-2 Conv1D modules
+  # QLoRA adaptation settings for 8B model - Optimized for 53%+ accuracy
+  rank: 64  # Rank 64 for 8B model capacity (as per MIT research)
+  alpha: 32  # Increased alpha for better adaptation strength
+  dropout: 0.05  # Reduced dropout for better performance
+  target_modules:  # Optimized for Llama-3 8B architecture
+    # Attention projections (primary targets for QLoRA)
+    - "q_proj"    # Query projection
+    - "v_proj"    # Value projection
+    - "k_proj"    # Key projection
+    - "o_proj"    # Output projection
+    # MLP projections (secondary targets)
+    - "gate_proj" # Gate projection
+    - "up_proj"   # Up projection
+    - "down_proj" # Down projection
+    # GPT-2 Conv1D modules (fallback compatibility)
     - "c_attn"   # Combined query, key, value projection
     - "c_proj"   # Output projection
-    # Llama Linear modules (fallback)
-    - "q_proj"
-    - "v_proj"
-    - "k_proj"
-    - "o_proj"
-    - "gate_proj"
-    - "up_proj"
-    - "down_proj"
   bias: "none"
+  # QLoRA-specific settings - Enhanced for 8B model performance
+  use_quantization: true
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"  # NF4 quantization for best quality
+  bnb_4bit_compute_dtype: "bfloat16"  # BF16 for better numerical stability
+  bnb_4bit_use_double_quant: true  # Double quantization for memory efficiency
+  bnb_4bit_quant_storage: "uint8"  # Efficient storage
 
 adaptation:
-  # MIT TTT Task adaptation settings
+  # MIT TTT Task adaptation settings - Enhanced for 53%+ validation accuracy
   use_leave_one_out: true  # MIT uses leave-one-out splits
-  augmentation_strategy: "basic"  # "basic", "size", "chain", "all"
+  augmentation_strategy: "enhanced"  # Enhanced strategy for better accuracy
   use_basic_augmentation: true  # MIT basic augmentations (rotation, flip)
-  use_size_augmentation: false  # MIT size-based augmentations
-  use_chain_augmentation: false  # MIT chained augmentations
+  use_size_augmentation: true  # Enable size-based augmentations for diversity
+  use_chain_augmentation: true  # Enable chained augmentations for robustness
+  augmentation_probability: 0.7  # 70% chance to apply augmentations
   
-  # Self-consistency settings (MIT research)
-  permute_n: 1  # Number of permutations for self-consistency
+  # Self-consistency settings (MIT research) - Enhanced
+  permute_n: 3  # Increased permutations for better consensus
   use_self_consistency: true  # Enable self-consistency voting
+  consensus_threshold: 0.6  # Require 60% agreement for prediction
   
-  # Data processing
+  # Data processing - Optimized for 8B model
   use_gpt_format: true  # MIT uses GPT-style message formatting
-  text_representation: "python_list"  # MIT grid representation format
+  text_representation: "structured_grid"  # Enhanced grid representation
+  include_reasoning: true  # Include reasoning steps for better performance
   
 checkpoints:
   # Checkpoint management
@@ -74,16 +94,21 @@ checkpoints:
   save_on_interrupt: true
 
 inference:
-  # MIT TTT Inference settings
-  temperature: 0.0  # MIT uses temperature 0 for deterministic output
+  # MIT TTT Inference settings - Optimized for 53%+ accuracy
+  temperature: 0.0  # Deterministic for exact matching
   top_p: 0.95
-  max_new_tokens: 500  # MIT constraint for grid generation
+  top_k: 50  # Top-k sampling for better quality
+  max_new_tokens: 300  # Reduced for efficient grid generation
   num_return_sequences: 1
   do_sample: false  # Deterministic decoding
+  repetition_penalty: 1.1  # Prevent repetitive outputs
+  no_repeat_ngram_size: 2  # Avoid n-gram repetition
   
-  # MIT TTT specific inference
+  # MIT TTT specific inference - Enhanced
   use_adapted_model: true  # Use per-instance adapted model
   aggregate_predictions: true  # Aggregate multiple augmented predictions
+  use_beam_search: false  # Greedy decoding for consistency
+  early_stopping: true  # Stop when EOS is generated
   
 monitoring:
   # MIT TTT Performance monitoring
@@ -99,36 +124,69 @@ monitoring:
   track_per_instance_performance: true
   save_adaptation_history: true
 
-# Platform-specific overrides for MIT TTT
+# Platform-specific overrides for 8B model QLoRA
 platform_overrides:
   kaggle:
+    model:
+      name: "meta-llama/Llama-3-8B"  # Full 8B model on Kaggle
+      load_in_4bit: true
+      bnb_4bit_quant_type: "nf4"
+      use_flash_attention: true
     training:
-      batch_size: 1  # MIT constraint for Kaggle
+      batch_size: 1  # Memory constraint for Kaggle
       gradient_accumulation_steps: 2
       per_instance_epochs: 1
+      memory_limit_mb: 15360  # 15GB for Kaggle GPU
     lora:
-      rank: 32  # Reduce rank for memory constraints
+      rank: 64  # Full rank for better performance
     adaptation:
       use_chain_augmentation: false
   
   colab:
+    model:
+      name: "meta-llama/Llama-3-8B"  # 8B model on Colab if memory allows
+      load_in_4bit: true
+      bnb_4bit_quant_type: "nf4"
+      gradient_checkpointing: true
     training:
       batch_size: 1
+      gradient_accumulation_steps: 4  # Higher accumulation for memory
       mixed_precision: true
       gradient_checkpointing: true
-    model:
-      quantization: true  # Force quantization on Colab
+      memory_limit_mb: 15360  # 15GB for Colab GPU
     lora:
-      rank: 32
+      rank: 32  # Reduced rank for memory constraints
     adaptation:
       permute_n: 1  # Single permutation for speed
   
   local_gpu:
+    model:
+      name: "meta-llama/Llama-3-8B"  # Full 8B model locally
+      load_in_4bit: true
+      bnb_4bit_quant_type: "nf4"
+      use_flash_attention: true
     training:
-      batch_size: 2
+      batch_size: 2  # Larger batch if memory allows
+      gradient_accumulation_steps: 1
       per_instance_epochs: 2
+      memory_limit_mb: 24576  # 24GB for local GPU
     lora:
       rank: 64  # Full MIT configuration
     adaptation:
       permute_n: 3  # Multiple permutations for better results
       use_chain_augmentation: true
+  
+  # Fallback configuration for insufficient memory
+  low_memory:
+    model:
+      name: "meta-llama/Llama-3.2-1B"  # Fallback to smaller model
+      load_in_4bit: false  # No quantization needed for 1B
+    training:
+      batch_size: 2
+      gradient_accumulation_steps: 1
+      memory_limit_mb: 4096  # 4GB memory limit
+    lora:
+      rank: 16  # Very low rank for efficiency
+    adaptation:
+      permute_n: 1
+      use_chain_augmentation: false

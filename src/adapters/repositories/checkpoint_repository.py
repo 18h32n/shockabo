@@ -386,3 +386,176 @@ class CheckpointRepository:
             json.dump(self.metadata_cache[checkpoint_id].to_dict(), f, indent=2)
         
         logger.info(f"Exported checkpoint {checkpoint_id} to {export_path}")
+    
+    def get_auto_resume_candidates(
+        self,
+        task_id: str,
+        max_age_hours: float = 0.5
+    ) -> List[CheckpointMetadata]:
+        """
+        Get checkpoint candidates for auto-resume.
+        
+        Args:
+            task_id: Task ID to find candidates for
+            max_age_hours: Maximum age in hours for resume candidates
+            
+        Returns:
+            List of checkpoint metadata suitable for resume
+        """
+        all_checkpoints = self.list_checkpoints(task_id=task_id)
+        current_time = datetime.now()
+        
+        candidates = []
+        for checkpoint in all_checkpoints:
+            age_hours = (current_time - checkpoint.created_at).total_seconds() / 3600
+            if age_hours <= max_age_hours:
+                candidates.append(checkpoint)
+        
+        # Sort by accuracy descending, then by creation time descending
+        candidates.sort(key=lambda x: (x.accuracy, x.created_at), reverse=True)
+        
+        return candidates
+    
+    def create_training_session(self, task_id: str, session_config: Dict[str, Any]) -> str:
+        """
+        Create a new training session with metadata tracking.
+        
+        Args:
+            task_id: Task ID for the session
+            session_config: Configuration for the training session
+            
+        Returns:
+            Session ID
+        """
+        session_id = f"{task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        session_metadata = {
+            "session_id": session_id,
+            "task_id": task_id,
+            "created_at": datetime.now().isoformat(),
+            "config": session_config,
+            "checkpoints": [],
+        }
+        
+        # Save session metadata
+        session_file = self.base_path / f"session_{session_id}.json"
+        with open(session_file, 'w') as f:
+            json.dump(session_metadata, f, indent=2)
+        
+        logger.info(f"Created training session: {session_id}")
+        return session_id
+    
+    def update_training_session(
+        self,
+        session_id: str,
+        checkpoint_id: str,
+        metrics: Dict[str, Any]
+    ) -> None:
+        """
+        Update training session with new checkpoint information.
+        
+        Args:
+            session_id: Session ID to update
+            checkpoint_id: New checkpoint ID
+            metrics: Training metrics to record
+        """
+        try:
+            session_file = self.base_path / f"session_{session_id}.json"
+            
+            if session_file.exists():
+                with open(session_file, 'r') as f:
+                    session_data = json.load(f)
+                
+                # Add checkpoint to session
+                session_data["checkpoints"].append({
+                    "checkpoint_id": checkpoint_id,
+                    "timestamp": datetime.now().isoformat(),
+                    "metrics": metrics,
+                })
+                
+                # Update session metadata
+                session_data["last_updated"] = datetime.now().isoformat()
+                session_data["total_checkpoints"] = len(session_data["checkpoints"])
+                
+                # Save updated session
+                with open(session_file, 'w') as f:
+                    json.dump(session_data, f, indent=2)
+                
+                logger.debug(f"Updated training session {session_id} with checkpoint {checkpoint_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to update training session {session_id}: {e}")
+    
+    def get_training_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get training session information.
+        
+        Args:
+            session_id: Session ID to retrieve
+            
+        Returns:
+            Session information if found, None otherwise
+        """
+        try:
+            session_file = self.base_path / f"session_{session_id}.json"
+            
+            if session_file.exists():
+                with open(session_file, 'r') as f:
+                    return json.load(f)
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get training session {session_id}: {e}")
+            return None
+    
+    def cleanup_training_sessions(self, max_age_days: int = 7) -> Dict[str, Any]:
+        """
+        Clean up old training session files.
+        
+        Args:
+            max_age_days: Maximum age in days before cleanup
+            
+        Returns:
+            Cleanup statistics
+        """
+        try:
+            session_files = list(self.base_path.glob("session_*.json"))
+            current_time = datetime.now()
+            
+            cleaned_count = 0
+            total_size_mb = 0.0
+            
+            for session_file in session_files:
+                try:
+                    # Check file age
+                    file_age = current_time - datetime.fromtimestamp(session_file.stat().st_mtime)
+                    
+                    if file_age.days > max_age_days:
+                        # Record size before deletion
+                        size_mb = session_file.stat().st_size / (1024 * 1024)
+                        total_size_mb += size_mb
+                        
+                        # Delete old session file
+                        session_file.unlink()
+                        cleaned_count += 1
+                        
+                        logger.debug(f"Cleaned up session file: {session_file.name}")
+                
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup session file {session_file}: {e}")
+            
+            stats = {
+                "cleaned_sessions": cleaned_count,
+                "total_sessions": len(session_files),
+                "freed_size_mb": total_size_mb,
+            }
+            
+            if cleaned_count > 0:
+                logger.info(f"Cleaned up {cleaned_count} training sessions, freed {total_size_mb:.2f}MB")
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Failed to cleanup training sessions: {e}")
+            return {"error": str(e)}

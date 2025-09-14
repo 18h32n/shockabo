@@ -20,6 +20,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.utils.lora_adapter import LoRAAdapter, LoRAConfig, apply_lora_to_model
 from src.utils.ttt_data_conversion import TTTDataConverter, TTTTask, AugmentationType
 from src.utils.auth_config import setup_hf_auth, get_model_access_info, suggest_public_model
+from src.utils.memory_manager import MemoryManager, GradientCheckpointingManager
+from src.utils.advanced_memory_optimization import (
+    MemoryOptimizationLevel,
+    MemoryOptimizationConfig,
+    apply_memory_optimizations
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +67,8 @@ class TTTTrainingConfig:
     # Memory management
     max_sequence_length: int = 2048
     gradient_checkpointing: bool = True
+    selective_checkpointing: bool = True
+    checkpointing_layers: int = 3  # Checkpoint every N layers
     memory_limit_mb: float = 10240  # 10GB
     
     # Augmentation
@@ -168,6 +176,11 @@ class TTTTrainer:
         self.current_adapter = None
         self.training_history = []
         
+        # Memory optimization components
+        self.memory_manager = None
+        self.checkpoint_manager = None
+        self.optimized_model = None
+        
         logger.info(f"Initialized TTT trainer with device: {self.device}")
     
     def _setup_device(self) -> torch.device:
@@ -234,9 +247,16 @@ class TTTTrainer:
         if model_kwargs["device_map"] is None:
             self.model = self.model.to(self.device)
         
+        # Apply comprehensive memory optimizations
+        self._apply_memory_optimizations()
+        
         # Enable gradient checkpointing for memory efficiency
         if self.config.gradient_checkpointing:
             self.model.gradient_checkpointing_enable()
+            
+            # Apply selective checkpointing if enabled
+            if self.config.selective_checkpointing:
+                self._apply_selective_checkpointing()
         
         # Create base LoRA adapter
         lora_config = LoRAConfig(
@@ -250,6 +270,13 @@ class TTTTrainer:
         
         logger.info("Model initialization complete")
         self.base_adapter.print_trainable_parameters()
+        
+        # Log memory optimization status
+        if self.memory_manager:
+            logger.info(f"Memory optimization applied: {self.memory_manager.get_memory_summary()}")
+        if self.checkpoint_manager:
+            stats = self.memory_manager.get_checkpointing_stats() if self.memory_manager else {}
+            logger.info(f"Gradient checkpointing stats: {stats}")
     
     def _prepare_training_batch(
         self, 
@@ -347,6 +374,16 @@ class TTTTrainer:
             metrics["avg_loss"] = metrics["total_loss"] / metrics["num_steps"]
         
         self.model.eval()
+        
+        # Add memory optimization metrics
+        if self.memory_manager:
+            memory_stats = self.memory_manager.get_checkpointing_stats()
+            metrics.update({
+                "memory_checkpointing_enabled": memory_stats.get("checkpointing_enabled", False),
+                "checkpointed_modules": memory_stats.get("checkpointed_modules_count", 0),
+                "memory_pressure": memory_stats.get("memory_pressure", "unknown")
+            })
+        
         return metrics
     
     def adapt_to_task(
@@ -626,6 +663,91 @@ class TTTTrainer:
             torch.cuda.empty_cache()
         
         logger.info("TTT trainer cleanup complete")
+    
+    def _apply_memory_optimizations(self) -> None:
+        """Apply comprehensive memory optimizations to the model."""
+        if self.model is None:
+            return
+        
+        try:
+            # Initialize memory manager
+            self.memory_manager = MemoryManager(
+                device=self.device,
+                memory_limit_gb=self.config.memory_limit_mb / 1024,
+                enable_monitoring=False
+            )
+            
+            # Apply memory optimizations based on model size
+            total_params = sum(p.numel() for p in self.model.parameters())
+            param_count_b = total_params / 1e9
+            
+            if param_count_b >= 7:  # 8B model
+                level = MemoryOptimizationLevel.AGGRESSIVE
+            elif param_count_b >= 1:  # 1B model
+                level = MemoryOptimizationLevel.BALANCED
+            else:
+                level = MemoryOptimizationLevel.CONSERVATIVE
+            
+            # Create optimized model wrapper
+            self.optimized_model = apply_memory_optimizations(self.model, level)
+            
+            logger.info(f"Applied {level.value} memory optimizations to {param_count_b:.1f}B parameter model")
+            
+        except Exception as e:
+            logger.warning(f"Failed to apply memory optimizations: {e}")
+    
+    def _apply_selective_checkpointing(self) -> None:
+        """Apply selective gradient checkpointing."""
+        if self.model is None or self.memory_manager is None:
+            return
+        
+        try:
+            # Initialize checkpoint manager
+            self.checkpoint_manager = GradientCheckpointingManager(self.memory_manager)
+            
+            # Apply model-specific checkpointing
+            result = self.checkpoint_manager.apply_model_specific_checkpointing(self.model)
+            
+            if result["success"]:
+                logger.info(
+                    f"Applied selective checkpointing: {result['checkpointed_layers']} layers "
+                    f"({result['model_type']} model)"
+                )
+                
+                # Log memory savings estimate
+                savings = result.get("memory_savings_estimate", {})
+                if "estimated_savings_mb" in savings:
+                    logger.info(
+                        f"Estimated memory savings: {savings['estimated_savings_mb']:.1f}MB "
+                        f"({savings.get('savings_percentage', 0):.1f}%)"
+                    )
+            else:
+                logger.warning("Selective checkpointing failed to apply")
+                
+        except Exception as e:
+            logger.warning(f"Failed to apply selective checkpointing: {e}")
+    
+    def get_memory_optimization_stats(self) -> dict[str, Any]:
+        """Get comprehensive memory optimization statistics."""
+        stats = {
+            "memory_manager_enabled": self.memory_manager is not None,
+            "checkpoint_manager_enabled": self.checkpoint_manager is not None,
+            "optimized_model_enabled": self.optimized_model is not None,
+        }
+        
+        if self.memory_manager:
+            stats.update({
+                "memory_stats": self.memory_manager.get_memory_usage(),
+                "checkpointing_stats": self.memory_manager.get_checkpointing_stats(),
+            })
+        
+        if self.optimized_model:
+            try:
+                stats["optimization_stats"] = self.optimized_model.get_optimization_stats()
+            except Exception as e:
+                stats["optimization_error"] = str(e)
+        
+        return stats
 
 
 class MIT_TTTStrategy:

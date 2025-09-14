@@ -19,13 +19,46 @@ from uuid import uuid4
 
 import structlog
 
-from .error_handling import (
-    ARCBaseException,
-    ErrorCode,
+# Import from comprehensive_error_handling for compatibility
+from .comprehensive_error_handling import (
     ErrorSeverity,
+    ErrorCategory,
     ErrorContext,
-    ErrorLogger,
+    ErrorRecoveryResult,
+    CheckpointManager,
+    OutOfMemoryHandler,
+    ModelLoadingHandler,
+    resilient_operation,
+    ErrorReporter,
 )
+
+# Fallback error classes if not available
+try:
+    from .error_handling import (
+        ARCBaseException,
+        ErrorCode,
+        ErrorLogger,
+    )
+except ImportError:
+    # Define minimal error classes for compatibility
+    class ErrorCode:
+        EXTERNAL_API_ERROR = "external_api_error"
+        TRAINING_ERROR = "training_error"
+        INFERENCE_ERROR = "inference_error"
+    
+    class ARCBaseException(Exception):
+        def __init__(self, message, error_code=None, severity=None, context=None, suggestions=None, retry_after=None, cause=None):
+            super().__init__(message)
+            self.error_code = error_code
+            self.severity = severity
+            self.context = context
+            self.suggestions = suggestions or []
+            self.retry_after = retry_after
+            self.cause = cause
+    
+    class ErrorLogger:
+        def log_error(self, error):
+            logger.error(f"Error: {error}")
 
 logger = structlog.get_logger(__name__)
 T = TypeVar('T')
@@ -258,7 +291,7 @@ class CircuitBreaker:
 
 
 class RetryStrategy:
-    """Advanced retry strategy with exponential backoff, jitter, and conditions."""
+    """Advanced retry strategy with exponential backoff, jitter, and intelligent error handling."""
     
     def __init__(
         self,
@@ -269,7 +302,9 @@ class RetryStrategy:
         jitter: bool = True,
         retryable_exceptions: tuple = (Exception,),
         non_retryable_exceptions: tuple = (),
-        retry_condition: Optional[Callable[[Exception], bool]] = None
+        retry_condition: Optional[Callable[[Exception], bool]] = None,
+        oom_handler: Optional[OutOfMemoryHandler] = None,
+        checkpoint_recovery: bool = True
     ):
         self.max_attempts = max_attempts
         self.base_delay = base_delay
@@ -279,15 +314,40 @@ class RetryStrategy:
         self.retryable_exceptions = retryable_exceptions
         self.non_retryable_exceptions = non_retryable_exceptions
         self.retry_condition = retry_condition
+        self.oom_handler = oom_handler or OutOfMemoryHandler()
+        self.checkpoint_recovery = checkpoint_recovery
+        self.error_history = []
+        self.recovery_stats = {
+            "oom_recoveries": 0,
+            "checkpoint_recoveries": 0,
+            "cuda_recoveries": 0,
+            "total_attempts": 0,
+            "successful_recoveries": 0
+        }
     
-    def should_retry(self, exception: Exception, attempt: int) -> bool:
-        """Determine if an exception should trigger a retry."""
+    def should_retry(self, exception: Exception, attempt: int, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Determine if an exception should trigger a retry with intelligent error analysis."""
         if attempt >= self.max_attempts:
             return False
         
         # Check non-retryable exceptions first
         if isinstance(exception, self.non_retryable_exceptions):
             return False
+        
+        # Special handling for specific error types
+        error_str = str(exception).lower()
+        
+        # Always retry OOM errors with recovery
+        if "out of memory" in error_str or "cuda out of memory" in error_str:
+            return True
+        
+        # Always retry checkpoint-related errors
+        if self.checkpoint_recovery and any(keyword in error_str for keyword in ["checkpoint", "corrupt", "pickle", "eof"]):
+            return True
+        
+        # Retry CUDA errors that might be transient
+        if "cuda" in error_str and any(keyword in error_str for keyword in ["initialization", "context", "device"]):
+            return True
         
         # Check retryable exceptions
         if not isinstance(exception, self.retryable_exceptions):
@@ -296,6 +356,12 @@ class RetryStrategy:
         # Apply custom retry condition if provided
         if self.retry_condition and not self.retry_condition(exception):
             return False
+        
+        # Analyze error history to avoid infinite retry loops
+        recent_errors = [e for e in self.error_history[-5:] if type(e) == type(exception)]
+        if len(recent_errors) >= 3:  # Same error type 3 times recently
+            logger.warning(f"Detected repeated error pattern: {type(exception).__name__}, reducing retry likelihood")
+            return attempt <= max(1, self.max_attempts // 2)
         
         return True
     
@@ -313,8 +379,11 @@ class RetryStrategy:
         return delay
     
     async def execute(self, func: Callable[..., T], *args, **kwargs) -> T:
-        """Execute function with retry logic."""
+        """Execute function with intelligent retry logic and error recovery."""
         last_exception = None
+        context = kwargs.copy()
+        
+        self.recovery_stats["total_attempts"] += 1
         
         for attempt in range(1, self.max_attempts + 1):
             try:
@@ -328,22 +397,31 @@ class RetryStrategy:
                         "retry_success",
                         function=func.__name__,
                         attempt=attempt,
-                        total_attempts=self.max_attempts
+                        total_attempts=self.max_attempts,
+                        recovery_used=True
                     )
+                    self.recovery_stats["successful_recoveries"] += 1
                 
                 return result
                 
             except Exception as e:
                 last_exception = e
+                self.error_history.append(e)
                 
-                if not self.should_retry(e, attempt):
+                # Attempt specialized recovery based on error type
+                recovery_attempted = await self._attempt_error_recovery(e, func.__name__, kwargs)
+                if recovery_attempted:
+                    logger.info(f"Attempted specialized recovery for {type(e).__name__}")
+                
+                if not self.should_retry(e, attempt, context):
                     logger.error(
                         "retry_abandoned",
                         function=func.__name__,
                         attempt=attempt,
                         max_attempts=self.max_attempts,
                         error=str(e),
-                        reason="non_retryable" if not isinstance(e, self.retryable_exceptions) else "max_attempts_reached"
+                        reason="non_retryable" if not isinstance(e, self.retryable_exceptions) else "max_attempts_reached",
+                        recovery_attempted=recovery_attempted
                     )
                     break
                 
@@ -355,7 +433,8 @@ class RetryStrategy:
                     attempt=attempt,
                     max_attempts=self.max_attempts,
                     delay_seconds=delay,
-                    error=str(e)
+                    error=str(e),
+                    recovery_attempted=recovery_attempted
                 )
                 
                 await asyncio.sleep(delay)
@@ -371,35 +450,129 @@ class RetryStrategy:
                 context=ErrorContext(additional_data={
                     "function": func.__name__,
                     "attempts": self.max_attempts,
-                    "final_error": str(last_exception)
+                    "final_error": str(last_exception),
+                    "recovery_stats": self.recovery_stats,
+                    "error_history": [str(e) for e in self.error_history[-5:]]
                 }),
                 cause=last_exception,
                 suggestions=[
                     "Check if the underlying service is available",
-                    "Verify network connectivity",
+                    "Verify system resources and memory",
+                    "Check for checkpoint corruption",
                     "Try increasing retry attempts or delay"
                 ]
             ) from last_exception
+    
+    async def _attempt_error_recovery(self, exception: Exception, func_name: str, kwargs: Dict[str, Any]) -> bool:
+        """Attempt specialized recovery based on error type."""
+        error_str = str(exception).lower()
+        recovery_attempted = False
+        
+        # OOM Error Recovery
+        if "out of memory" in error_str or "cuda out of memory" in error_str:
+            try:
+                import torch
+                error_context = ErrorContext(
+                    operation=func_name,
+                    batch_size=kwargs.get("batch_size"),
+                    memory_usage_mb=torch.cuda.memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0
+                )
+                
+                recovery_result = self.oom_handler.handle_oom(error_context)
+                if recovery_result.success:
+                    # Update kwargs with recovery parameters
+                    if "new_batch_size" in recovery_result.metadata:
+                        kwargs["batch_size"] = recovery_result.metadata["new_batch_size"]
+                    self.recovery_stats["oom_recoveries"] += 1
+                    recovery_attempted = True
+                    logger.info(f"OOM recovery applied: {recovery_result.strategy_used}")
+            except Exception as recovery_error:
+                logger.warning(f"OOM recovery failed: {recovery_error}")
+        
+        # CUDA Error Recovery
+        elif "cuda" in error_str:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                    # Brief pause to allow GPU to recover
+                    await asyncio.sleep(0.5)
+                    self.recovery_stats["cuda_recoveries"] += 1
+                    recovery_attempted = True
+                    logger.info("CUDA cache cleared and synchronized")
+            except Exception as recovery_error:
+                logger.warning(f"CUDA recovery failed: {recovery_error}")
+        
+        # Checkpoint Recovery
+        elif self.checkpoint_recovery and any(keyword in error_str for keyword in ["checkpoint", "corrupt", "pickle"]):
+            try:
+                # Signal that checkpoint should be skipped/recovered
+                if "checkpoint_manager" in kwargs:
+                    checkpoint_manager = kwargs["checkpoint_manager"]
+                    if hasattr(checkpoint_manager, "recovery_attempts"):
+                        checkpoint_manager.recovery_attempts += 1
+                        self.recovery_stats["checkpoint_recoveries"] += 1
+                        recovery_attempted = True
+                        logger.info("Checkpoint recovery signaled")
+            except Exception as recovery_error:
+                logger.warning(f"Checkpoint recovery failed: {recovery_error}")
+        
+        return recovery_attempted
+    
+    def get_recovery_stats(self) -> Dict[str, Any]:
+        """Get recovery statistics."""
+        total_attempts = max(self.recovery_stats["total_attempts"], 1)
+        return {
+            **self.recovery_stats,
+            "success_rate": self.recovery_stats["successful_recoveries"] / total_attempts,
+            "error_types_seen": list(set(type(e).__name__ for e in self.error_history)),
+            "recent_errors": [str(e) for e in self.error_history[-3:]]
+        }
 
 
 class FallbackStrategy:
-    """Fallback mechanisms for when primary operations fail."""
+    """Enhanced fallback mechanisms with intelligent error-specific fallbacks."""
     
     def __init__(self, name: str):
         self.name = name
         self.fallbacks: List[Callable] = []
+        self.error_specific_fallbacks = {}  # Map error types to specific fallbacks
         self.execution_stats = {
             "primary_success": 0,
             "primary_failure": 0,
             "fallback_success": 0,
             "fallback_failure": 0,
-            "total_requests": 0
+            "total_requests": 0,
+            "oom_fallbacks": 0,
+            "checkpoint_fallbacks": 0,
+            "cuda_fallbacks": 0
         }
+        self.oom_handler = OutOfMemoryHandler()
+        self.model_loading_handler = ModelLoadingHandler()
     
-    def add_fallback(self, fallback_func: Callable, priority: int = 0):
-        """Add a fallback function with optional priority (higher = more preferred)."""
+    def add_fallback(self, fallback_func: Callable, priority: int = 0, error_types: Optional[List[type]] = None):
+        """Add a fallback function with optional priority and error-specific targeting."""
         self.fallbacks.append((priority, fallback_func))
         self.fallbacks.sort(key=lambda x: x[0], reverse=True)
+        
+        # Add error-specific fallbacks
+        if error_types:
+            for error_type in error_types:
+                if error_type not in self.error_specific_fallbacks:
+                    self.error_specific_fallbacks[error_type] = []
+                self.error_specific_fallbacks[error_type].append((priority, fallback_func))
+                self.error_specific_fallbacks[error_type].sort(key=lambda x: x[0], reverse=True)
+    
+    def add_oom_fallback(self, fallback_func: Callable, priority: int = 10):
+        """Add a fallback specifically for OOM errors."""
+        import torch
+        self.add_fallback(fallback_func, priority, [torch.cuda.OutOfMemoryError, MemoryError])
+    
+    def add_checkpoint_fallback(self, fallback_func: Callable, priority: int = 10):
+        """Add a fallback specifically for checkpoint errors."""
+        import pickle
+        self.add_fallback(fallback_func, priority, [pickle.PickleError, FileNotFoundError, EOFError])
     
     async def execute(
         self,
@@ -408,7 +581,7 @@ class FallbackStrategy:
         fallback_args: Optional[Dict] = None,
         **kwargs
     ) -> T:
-        """Execute with fallback logic."""
+        """Execute with intelligent fallback logic and error-specific recovery."""
         self.execution_stats["total_requests"] += 1
         fallback_args = fallback_args or {}
         
@@ -429,39 +602,34 @@ class FallbackStrategy:
                 "fallback_primary_failed",
                 strategy=self.name,
                 primary_function=primary_func.__name__,
-                error=str(primary_error)
+                error=str(primary_error),
+                error_type=type(primary_error).__name__
             )
             
-            # Try fallbacks in order of priority
+            # Try error-specific fallbacks first
+            error_type = type(primary_error)
+            if error_type in self.error_specific_fallbacks:
+                logger.info(f"Trying error-specific fallbacks for {error_type.__name__}")
+                
+                for priority, fallback_func in self.error_specific_fallbacks[error_type]:
+                    try:
+                        result = await self._execute_fallback(fallback_func, primary_error, args, fallback_args, kwargs)
+                        if result is not None:
+                            self._update_error_specific_stats(primary_error)
+                            return result
+                    except Exception as e:
+                        logger.warning(f"Error-specific fallback {fallback_func.__name__} failed: {e}")
+                        continue
+            
+            # Try general fallbacks in order of priority
             last_fallback_error = None
             
             for priority, fallback_func in self.fallbacks:
                 try:
-                    logger.info(
-                        "fallback_attempting",
-                        strategy=self.name,
-                        fallback_function=fallback_func.__name__,
-                        priority=priority
-                    )
-                    
-                    # Use fallback-specific args if provided
-                    fb_args = fallback_args.get(fallback_func.__name__, {})
-                    
-                    if asyncio.iscoroutinefunction(fallback_func):
-                        result = await fallback_func(*args, **fb_args, **kwargs)
-                    else:
-                        result = fallback_func(*args, **fb_args, **kwargs)
-                    
-                    self.execution_stats["fallback_success"] += 1
-                    
-                    logger.info(
-                        "fallback_success",
-                        strategy=self.name,
-                        fallback_function=fallback_func.__name__,
-                        priority=priority
-                    )
-                    
-                    return result
+                    result = await self._execute_fallback(fallback_func, primary_error, args, fallback_args, kwargs)
+                    if result is not None:
+                        self.execution_stats["fallback_success"] += 1
+                        return result
                     
                 except Exception as fallback_error:
                     last_fallback_error = fallback_error
@@ -486,27 +654,111 @@ class FallbackStrategy:
                 context=ErrorContext(additional_data={
                     "strategy": self.name,
                     "primary_error": str(primary_error),
+                    "primary_error_type": type(primary_error).__name__,
                     "last_fallback_error": str(last_fallback_error),
-                    "fallback_count": len(self.fallbacks)
+                    "fallback_count": len(self.fallbacks),
+                    "error_specific_fallbacks_tried": error_type in self.error_specific_fallbacks,
+                    "execution_stats": self.execution_stats
                 }),
                 cause=last_fallback_error,
                 suggestions=[
                     "Check all service dependencies",
-                    "Verify system resources",
+                    "Verify system resources and memory",
+                    "Check for checkpoint corruption",
                     "Consider adding more fallback options"
                 ]
             ) from primary_error
     
+    async def _execute_fallback(
+        self, 
+        fallback_func: Callable, 
+        primary_error: Exception, 
+        args: tuple, 
+        fallback_args: Dict, 
+        kwargs: Dict
+    ) -> Optional[Any]:
+        """Execute a single fallback with error handling."""
+        logger.info(
+            "fallback_attempting",
+            strategy=self.name,
+            fallback_function=fallback_func.__name__,
+            primary_error_type=type(primary_error).__name__
+        )
+        
+        # Apply error-specific recovery before fallback
+        await self._apply_pre_fallback_recovery(primary_error, kwargs)
+        
+        # Use fallback-specific args if provided
+        fb_args = fallback_args.get(fallback_func.__name__, {})
+        
+        if asyncio.iscoroutinefunction(fallback_func):
+            result = await fallback_func(*args, **fb_args, **kwargs)
+        else:
+            result = fallback_func(*args, **fb_args, **kwargs)
+        
+        logger.info(
+            "fallback_success",
+            strategy=self.name,
+            fallback_function=fallback_func.__name__
+        )
+        
+        return result
+    
+    async def _apply_pre_fallback_recovery(self, primary_error: Exception, kwargs: Dict[str, Any]) -> None:
+        """Apply recovery measures before executing fallback."""
+        error_str = str(primary_error).lower()
+        
+        # OOM recovery
+        if "out of memory" in error_str:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                # Reduce batch size if present
+                if "batch_size" in kwargs and kwargs["batch_size"] > 1:
+                    kwargs["batch_size"] = max(1, kwargs["batch_size"] // 2)
+                    logger.info(f"Reduced batch size to {kwargs['batch_size']} before fallback")
+            except Exception as e:
+                logger.warning(f"Pre-fallback OOM recovery failed: {e}")
+        
+        # CUDA error recovery
+        elif "cuda" in error_str:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                    await asyncio.sleep(0.5)  # Brief pause for GPU recovery
+            except Exception as e:
+                logger.warning(f"Pre-fallback CUDA recovery failed: {e}")
+    
+    def _update_error_specific_stats(self, error: Exception) -> None:
+        """Update statistics for error-specific fallback usage."""
+        error_str = str(error).lower()
+        if "out of memory" in error_str:
+            self.execution_stats["oom_fallbacks"] += 1
+        elif "checkpoint" in error_str or "corrupt" in error_str:
+            self.execution_stats["checkpoint_fallbacks"] += 1
+        elif "cuda" in error_str:
+            self.execution_stats["cuda_fallbacks"] += 1
+    
     def get_stats(self) -> Dict[str, Any]:
-        """Get fallback execution statistics."""
+        """Get comprehensive fallback execution statistics."""
         total = max(self.execution_stats["total_requests"], 1)
         return {
             "name": self.name,
             "fallback_count": len(self.fallbacks),
+            "error_specific_fallbacks": {k.__name__: len(v) for k, v in self.error_specific_fallbacks.items()},
             "statistics": self.execution_stats.copy(),
             "primary_success_rate": self.execution_stats["primary_success"] / total,
             "fallback_usage_rate": (self.execution_stats["fallback_success"] + self.execution_stats["fallback_failure"]) / total,
-            "overall_success_rate": (self.execution_stats["primary_success"] + self.execution_stats["fallback_success"]) / total
+            "overall_success_rate": (self.execution_stats["primary_success"] + self.execution_stats["fallback_success"]) / total,
+            "specialized_fallback_rates": {
+                "oom_fallback_rate": self.execution_stats["oom_fallbacks"] / total,
+                "checkpoint_fallback_rate": self.execution_stats["checkpoint_fallbacks"] / total,
+                "cuda_fallback_rate": self.execution_stats["cuda_fallbacks"] / total,
+            }
         }
 
 

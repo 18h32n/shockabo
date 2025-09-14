@@ -206,6 +206,37 @@ Generate the solution with full reasoning:""",
                 "flash_attention": True,
                 "gradient_checkpointing": False,
             },
+            {
+                "name": "inference_optimized",
+                "description": "Inference-specific optimizations with batching",
+                "quantization_config": BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                ),
+                "torch_compile": True,
+                "flash_attention": True,
+                "gradient_checkpointing": False,
+                "kv_cache_optimization": True,
+                "static_cache": True,
+            },
+            {
+                "name": "speed_focused",
+                "description": "Maximum speed with minimal memory safety",
+                "quantization_config": BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=False,  # Faster but less memory efficient
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                ),
+                "torch_compile": True,
+                "flash_attention": True,
+                "gradient_checkpointing": False,
+                "kv_cache_optimization": True,
+                "static_cache": True,
+                "low_cpu_mem_usage": False,  # Faster loading
+            },
         ]
     
     def load_optimized_model(self, model_name: str, config: Dict[str, Any]) -> tuple[nn.Module, Any]:
@@ -227,6 +258,7 @@ Generate the solution with full reasoning:""",
             "trust_remote_code": True,
             "torch_dtype": torch.bfloat16,
             "device_map": "auto",
+            "low_cpu_mem_usage": config.get("low_cpu_mem_usage", True),
         }
         
         # Add quantization if specified
@@ -239,6 +271,20 @@ Generate the solution with full reasoning:""",
         
         # Load model
         model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+        
+        # Apply KV cache optimizations if specified
+        if config.get("kv_cache_optimization", False):
+            try:
+                if hasattr(model.config, 'use_cache'):
+                    model.config.use_cache = True
+                
+                # Enable static cache if supported
+                if config.get("static_cache", False) and hasattr(model, 'enable_static_cache'):
+                    model.enable_static_cache()
+                    logger.info("Static KV cache enabled")
+                    
+            except Exception as e:
+                logger.warning(f"KV cache optimization failed: {e}")
         
         # Apply torch.compile if specified
         if config["torch_compile"]:
@@ -295,19 +341,34 @@ Generate the solution with full reasoning:""",
             start_time = time.time()
             
             with torch.no_grad():
+                # Determine generation parameters based on optimization config
+                generation_kwargs = {
+                    "max_new_tokens": task.expected_output_length,
+                    "min_new_tokens": min(50, task.expected_output_length // 2),
+                    "pad_token_id": tokenizer.pad_token_id,
+                    "eos_token_id": tokenizer.eos_token_id,
+                    "use_cache": config.get("kv_cache_optimization", True),
+                }
+                
+                # Use different sampling strategies based on config
+                if config["name"] in ["speed_focused", "inference_optimized"]:
+                    # Faster, more deterministic generation
+                    generation_kwargs.update({
+                        "do_sample": False,
+                        "num_beams": 1,  # No beam search for speed
+                        "repetition_penalty": 1.1,
+                    })
+                else:
+                    # Higher quality but slower generation
+                    generation_kwargs.update({
+                        "do_sample": True,
+                        "temperature": 0.7,
+                        "top_p": 0.9,
+                        "top_k": 50,
+                    })
+                
                 # Use optimized generation parameters
-                outputs = model.generate(
-                    **inputs,
-                    max_new_tokens=task.expected_output_length,
-                    min_new_tokens=min(50, task.expected_output_length // 2),
-                    do_sample=True,
-                    temperature=0.7,
-                    top_p=0.9,
-                    top_k=50,
-                    pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                    use_cache=True,  # Enable KV caching
-                )
+                outputs = model.generate(**inputs, **generation_kwargs)
             
             inference_time = time.time() - start_time
             
@@ -350,43 +411,106 @@ Generate the solution with full reasoning:""",
         self.profiles.append(profile)
         return profile
     
-    def run_comprehensive_benchmark(self, model_name: str = "microsoft/DialoGPT-large") -> List[InferenceProfile]:
-        """Run comprehensive inference benchmarking."""
+    def run_comprehensive_benchmark(self, model_name: str = "meta-llama/Llama-3-8B") -> List[InferenceProfile]:
+        """Run comprehensive inference benchmarking with 8B model support."""
         logger.info("Starting comprehensive inference benchmarking...")
+        logger.info(f"Target model: {model_name}")
+        logger.info(f"Time limit: {self.time_limit_seconds}s ({self.time_limit_seconds/60:.1f} minutes)")
         
         tasks = self.get_arc_task_samples()
         configs = self.create_optimized_model_configs()
         results = []
         
+        # Track best configuration found so far
+        best_config = None
+        best_time = float('inf')
+        
         for config in configs:
-            logger.info(f"Testing optimization: {config['name']}")
+            logger.info(f"Testing optimization: {config['name']} - {config['description']}")
             
             try:
                 # Load model with current optimization
+                start_load = time.time()
                 model, tokenizer = self.load_optimized_model(model_name, config)
+                load_time = time.time() - start_load
+                logger.info(f"Model loading time: {load_time:.2f}s")
                 
-                # Test on each task
+                # Test on each task complexity level
+                config_results = []
                 for task in tasks:
                     profile = self.benchmark_inference(model, tokenizer, task, config, model_name)
                     results.append(profile)
+                    config_results.append(profile)
                     
                     # Log immediate results
                     self._log_inference_result(profile)
                     
-                    # Early stop if inference is too slow
+                    # Track best configuration
+                    if profile.success and profile.meets_time_requirement:
+                        if profile.inference_time_seconds < best_time:
+                            best_time = profile.inference_time_seconds
+                            best_config = config['name']
+                    
+                    # Early stop if inference is too slow for this configuration
                     if profile.inference_time_seconds > self.time_limit_seconds * 1.5:
                         logger.warning(f"Inference too slow ({profile.inference_time_seconds:.1f}s), skipping remaining tasks for this config")
                         break
+                
+                # Log configuration summary
+                successful_tasks = [p for p in config_results if p.success]
+                within_limit_tasks = [p for p in successful_tasks if p.meets_time_requirement]
+                
+                logger.info(f"Configuration '{config['name']}' summary:")
+                logger.info(f"  Success rate: {len(successful_tasks)}/{len(config_results)} tasks")
+                logger.info(f"  Within time limit: {len(within_limit_tasks)}/{len(successful_tasks)} successful tasks")
+                
+                if within_limit_tasks:
+                    avg_time = sum(p.inference_time_seconds for p in within_limit_tasks) / len(within_limit_tasks)
+                    avg_throughput = sum(p.tokens_per_second for p in within_limit_tasks) / len(within_limit_tasks)
+                    logger.info(f"  Average time: {avg_time:.2f}s")
+                    logger.info(f"  Average throughput: {avg_throughput:.1f} tok/s")
                 
                 # Cleanup
                 del model, tokenizer
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                    torch.cuda.reset_peak_memory_stats()
                 gc.collect()
                 
             except Exception as e:
                 logger.error(f"Failed to test optimization {config['name']}: {e}")
+                # Create failure profile for tracking
+                for task in tasks:
+                    failure_profile = InferenceProfile(
+                        optimization_name=config["name"],
+                        model_name=model_name,
+                        task_prompt=task.task_id,
+                        inference_time_seconds=0,
+                        tokens_generated=0,
+                        tokens_per_second=0,
+                        memory_usage_mb=0,
+                        success=False,
+                        error_message=str(e),
+                        optimization_config=config,
+                        meets_time_requirement=False
+                    )
+                    results.append(failure_profile)
                 continue
+        
+        # Log final summary
+        successful_profiles = [p for p in results if p.success]
+        within_limit_profiles = [p for p in successful_profiles if p.meets_time_requirement]
+        
+        logger.info(f"\n{'='*80}")
+        logger.info("BENCHMARK COMPLETION SUMMARY")
+        logger.info(f"{'='*80}")
+        logger.info(f"Total tests run: {len(results)}")
+        logger.info(f"Successful tests: {len(successful_profiles)}")
+        logger.info(f"Tests within time limit: {len(within_limit_profiles)}")
+        logger.info(f"Best configuration: {best_config or 'None'}")
+        if best_config:
+            logger.info(f"Best time achieved: {best_time:.2f}s")
+        logger.info(f"{'='*80}")
         
         return results
     
@@ -545,9 +669,26 @@ def main():
     # Initialize optimizer
     optimizer = InferenceOptimizer(time_limit_seconds=432)  # 7.2 minutes
     
-    # Run benchmarks (using smaller model for testing)
+    # Run benchmarks with 8B model (use smaller model for testing if needed)
     logger.info("Starting inference optimization benchmarking...")
-    model_name = "microsoft/DialoGPT-large"  # Use this for testing instead of 8B model
+    
+    # Detect if we should use 8B model based on available GPU memory
+    model_name = "meta-llama/Llama-3-8B"  # Default to 8B model
+    
+    if torch.cuda.is_available():
+        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        logger.info(f"Available GPU memory: {gpu_memory_gb:.2f}GB")
+        
+        if gpu_memory_gb < 12:
+            # Use smaller model for testing on limited hardware
+            model_name = "microsoft/DialoGPT-large"
+            logger.warning(f"Using smaller test model due to limited GPU memory ({gpu_memory_gb:.2f}GB < 12GB required)")
+        else:
+            logger.info("Using Llama-3-8B model for inference optimization testing")
+    else:
+        # Use smaller model for CPU testing
+        model_name = "microsoft/DialoGPT-large"
+        logger.warning("Using smaller test model for CPU-only environment")
     
     results = optimizer.run_comprehensive_benchmark(model_name)
     
