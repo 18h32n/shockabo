@@ -21,7 +21,7 @@ class UserRepository:
 
     def __init__(self, db_path: str = "./data/arc_prize.db"):
         """Initialize user repository with database connection.
-        
+
         Args:
             db_path: Path to SQLite database file
         """
@@ -88,16 +88,16 @@ class UserRepository:
 
     def create_user(self, username: str, email: str, password: str, role: UserRole = UserRole.USER) -> User:
         """Create a new user account.
-        
+
         Args:
             username: Unique username
             email: Unique email address
             password: Plain text password (will be hashed)
             role: User role
-            
+
         Returns:
             Created User object
-            
+
         Raises:
             ValueError: If username or email already exists
         """
@@ -108,7 +108,7 @@ class UserRepository:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
-                    INSERT INTO users (id, username, email, password_hash, role, status, 
+                    INSERT INTO users (id, username, email, password_hash, role, status,
                                      created_at, updated_at, failed_login_attempts, metadata)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '{}')
                 """, (user_id, username, email, password_hash, role.value,
@@ -132,18 +132,18 @@ class UserRepository:
 
         except sqlite3.IntegrityError as e:
             if "username" in str(e):
-                raise ValueError("Username already exists")
+                raise ValueError("Username already exists") from e
             elif "email" in str(e):
-                raise ValueError("Email already exists")
+                raise ValueError("Email already exists") from e
             else:
                 raise ValueError("User creation failed") from e
 
     def get_user_by_username(self, username: str) -> User | None:
         """Get user by username.
-        
+
         Args:
             username: Username to search for
-            
+
         Returns:
             User object if found, None otherwise
         """
@@ -174,10 +174,10 @@ class UserRepository:
 
     def get_user_by_email(self, email: str) -> User | None:
         """Get user by email.
-        
+
         Args:
             email: Email to search for
-            
+
         Returns:
             User object if found, None otherwise
         """
@@ -208,11 +208,11 @@ class UserRepository:
 
     def authenticate_user(self, username_or_email: str, password: str) -> User | None:
         """Authenticate a user with username/email and password.
-        
+
         Args:
             username_or_email: Username or email address
             password: Plain text password
-            
+
         Returns:
             User object if authentication successful, None otherwise
         """
@@ -252,7 +252,7 @@ class UserRepository:
         with sqlite3.connect(self.db_path) as conn:
             # Increment failed attempts
             conn.execute("""
-                UPDATE users 
+                UPDATE users
                 SET failed_login_attempts = failed_login_attempts + 1,
                     updated_at = ?
                 WHERE id = ?
@@ -268,7 +268,7 @@ class UserRepository:
                 # Lock account for 15 minutes
                 locked_until = datetime.now() + timedelta(minutes=15)
                 conn.execute("""
-                    UPDATE users 
+                    UPDATE users
                     SET locked_until = ?, status = ?, updated_at = ?
                     WHERE id = ?
                 """, (locked_until, AccountStatus.LOCKED.value, datetime.now(), user_id))
@@ -282,8 +282,8 @@ class UserRepository:
         with sqlite3.connect(self.db_path) as conn:
             now = datetime.now()
             conn.execute("""
-                UPDATE users 
-                SET last_login_at = ?, 
+                UPDATE users
+                SET last_login_at = ?,
                     failed_login_attempts = 0,
                     locked_until = NULL,
                     status = ?,
@@ -294,7 +294,7 @@ class UserRepository:
 
     def record_auth_attempt(self, attempt: AuthenticationAttempt):
         """Record an authentication attempt for security monitoring.
-        
+
         Args:
             attempt: AuthenticationAttempt object to record
         """
@@ -310,11 +310,11 @@ class UserRepository:
 
     def get_recent_failed_attempts(self, ip_address: str, minutes: int = 15) -> list[AuthenticationAttempt]:
         """Get recent failed authentication attempts from an IP.
-        
+
         Args:
             ip_address: IP address to check
             minutes: Number of minutes to look back
-            
+
         Returns:
             List of recent failed attempts
         """
@@ -323,7 +323,7 @@ class UserRepository:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("""
-                SELECT * FROM auth_attempts 
+                SELECT * FROM auth_attempts
                 WHERE ip_address = ? AND success = 0 AND timestamp > ?
                 ORDER BY timestamp DESC
             """, (ip_address, cutoff))
@@ -345,12 +345,12 @@ class UserRepository:
 
     def create_service_account(self, name: str, description: str, permissions: list[str]) -> ServiceAccount:
         """Create a new service account.
-        
+
         Args:
             name: Service account name
             description: Description of the service account
             permissions: List of permissions
-            
+
         Returns:
             Created ServiceAccount object
         """

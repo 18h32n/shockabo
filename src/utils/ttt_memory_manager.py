@@ -37,7 +37,7 @@ class MemoryMonitor:
     def __init__(self, memory_limit_mb: float = 10240):
         """
         Initialize memory monitor.
-        
+
         Args:
             memory_limit_mb: Memory limit in MB (default 10GB)
         """
@@ -94,10 +94,10 @@ class MemoryMonitor:
     def check_memory_threshold(self, threshold: float = 0.85) -> bool:
         """
         Check if memory usage exceeds threshold.
-        
+
         Args:
             threshold: Memory threshold (0.0 to 1.0)
-            
+
         Returns:
             True if memory usage exceeds threshold
         """
@@ -118,7 +118,7 @@ class MemoryMonitor:
     def memory_context(self, operation_name: str = "operation") -> Generator[None, None, None]:
         """
         Context manager for memory-aware operations.
-        
+
         Args:
             operation_name: Name of the operation for logging
         """
@@ -154,7 +154,7 @@ class TTTDataset(Dataset):
     ):
         """
         Initialize TTT dataset.
-        
+
         Args:
             prompts: List of training prompts
             tokenizer: Tokenizer instance
@@ -212,7 +212,7 @@ class MemoryEfficientTTTTrainer:
     ):
         """
         Initialize memory-efficient TTT trainer.
-        
+
         Args:
             model: Base model
             adapter: LoRA adapter
@@ -243,12 +243,12 @@ class MemoryEfficientTTTTrainer:
     ) -> dict[str, float]:
         """
         Perform a single training step with memory optimization.
-        
+
         Args:
             batch: Training batch
             optimizer: Optimizer instance
             accumulation_steps: Gradient accumulation steps
-            
+
         Returns:
             Dictionary with training metrics
         """
@@ -311,14 +311,14 @@ class MemoryEfficientTTTTrainer:
     ) -> dict[str, float]:
         """
         Train for one epoch with memory optimization.
-        
+
         Args:
             dataset: Training dataset
             optimizer: Optimizer instance
             batch_size: Batch size (keep small for memory efficiency)
             accumulation_steps: Gradient accumulation steps
             max_steps: Maximum number of steps
-            
+
         Returns:
             Dictionary with epoch metrics
         """
@@ -397,7 +397,7 @@ class MemoryEfficientTTTTrainer:
     ) -> dict[str, Any]:
         """
         Perform per-instance TTT training with memory optimization.
-        
+
         Args:
             prompts: Training prompts for this instance
             tokenizer: Tokenizer instance
@@ -406,7 +406,7 @@ class MemoryEfficientTTTTrainer:
             batch_size: Batch size
             max_length: Maximum sequence length
             max_time_seconds: Maximum training time
-            
+
         Returns:
             Dictionary with training results
         """
@@ -487,11 +487,11 @@ def memory_efficient_context(
 ) -> Generator[MemoryMonitor, None, None]:
     """
     Context manager for memory-efficient operations.
-    
+
     Args:
         memory_limit_mb: Memory limit in MB
         cleanup_threshold: Threshold for automatic cleanup
-        
+
     Yields:
         MemoryMonitor instance
     """
@@ -508,7 +508,7 @@ def memory_efficient_context(
 def optimize_model_for_memory(model: nn.Module, enable_checkpointing: bool = True) -> None:
     """
     Apply memory optimizations to model.
-    
+
     Args:
         model: Model to optimize
         enable_checkpointing: Enable gradient checkpointing

@@ -25,37 +25,29 @@ from src.domain.models import (
     StrategyType,
     TTTAdaptation,
 )
-from src.utils.ttt_data_conversion import AugmentationType
-from src.utils.ttt_methodology import MIT_TTTStrategy, TTTTrainingConfig
 from src.utils.advanced_memory_optimization import (
-    MemoryOptimizationLevel,
     MemoryOptimizationConfig,
-    OptimizedModelWrapper,
-    apply_memory_optimizations
-)
-from src.utils.progressive_inference import (
-    ProgressiveInferenceEngine,
-    TimeoutConfig,
-    FallbackLevel,
-    create_default_fallback_functions
+    MemoryOptimizationLevel,
+    apply_memory_optimizations,
 )
 from src.utils.comprehensive_error_handling import (
-    OutOfMemoryHandler,
     CheckpointManager,
-    ModelLoadingHandler,
-    resilient_operation,
-    ErrorContext,
-    ErrorRecoveryResult,
-    ErrorSeverity,
     ErrorCategory,
-    ErrorReporter
+    ErrorContext,
+    ErrorReporter,
+    ErrorSeverity,
+    ModelLoadingHandler,
+    OutOfMemoryHandler,
+    resilient_operation,
 )
-from src.utils.error_recovery import (
-    RetryStrategy,
-    FallbackStrategy,
-    CircuitBreaker,
-    HealthMonitor
+from src.utils.error_recovery import FallbackStrategy, RetryStrategy
+from src.utils.progressive_inference import (
+    FallbackLevel,
+    ProgressiveInferenceEngine,
+    TimeoutConfig,
 )
+from src.utils.ttt_data_conversion import AugmentationType
+from src.utils.ttt_methodology import MIT_TTTStrategy, TTTTrainingConfig
 
 
 @dataclass
@@ -107,7 +99,7 @@ class TTTConfig:
     max_training_time: float = 300.0
     use_flash_attention: bool = True
     memory_optimization_level: str = "balanced"  # conservative, balanced, aggressive
-    
+
     # Inference optimization parameters
     max_inference_time: float = 432.0  # 7.2 minutes
     enable_torch_compile: bool = True
@@ -115,7 +107,7 @@ class TTTConfig:
     enable_static_cache: bool = True
     inference_batch_size: int = 1
     low_cpu_mem_usage: bool = True
-    
+
     # Progressive inference parameters
     enable_progressive_inference: bool = True
     progressive_warning_threshold: float = 0.8  # 80% of time limit
@@ -214,7 +206,7 @@ class TTTConfig:
                 "bnb_4bit_compute_dtype": self.bnb_4bit_compute_dtype,
                 "bnb_4bit_use_double_quant": True,  # Double quantization for better memory
             }
-        
+
         if self.lora_target_modules is None:
             # Default target modules for Llama-3 8B model
             self.lora_target_modules = [
@@ -250,7 +242,7 @@ class TTTAdapter:
 
         # Setup device
         self.device = self._setup_device()
-        
+
         # Initialize error handling components
         self.oom_handler = OutOfMemoryHandler(
             min_batch_size=1,
@@ -262,30 +254,28 @@ class TTTAdapter:
         )
         self.model_loading_handler = ModelLoadingHandler()
         self.error_reporter = ErrorReporter(log_file=str(self.config.checkpoint_dir / "error_log.json"))
-        
+
         # Initialize retry and fallback strategies
         self.retry_strategy = RetryStrategy(
             max_attempts=3,
-            base_delay=2.0,
-            oom_handler=self.oom_handler,
-            checkpoint_recovery=True
+            base_delay=2.0
         )
-        
+
         self.training_fallback = FallbackStrategy("ttt_training")
         self.inference_fallback = FallbackStrategy("ttt_inference")
-        
+
         # Setup error-specific fallbacks
         self._setup_error_fallbacks()
-        
+
         # Circuit breakers for critical operations
         from src.utils.error_recovery import get_circuit_breaker
         self.model_loading_breaker = get_circuit_breaker("model_loading")
         self.training_breaker = get_circuit_breaker("training")
         self.inference_breaker = get_circuit_breaker("inference")
-        
+
         # Memory optimization configuration
         self.memory_opt_config = self._create_memory_optimization_config()
-        
+
         # Progressive inference configuration
         self.progressive_inference_engine = None
         if self.config.enable_progressive_inference:
@@ -294,7 +284,7 @@ class TTTAdapter:
         # Ensure directories exist
         self.config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.config.cache_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Setup health monitoring
         from src.utils.error_recovery import get_health_monitor
         self.health_monitor = get_health_monitor("ttt_adapter")
@@ -318,13 +308,11 @@ class TTTAdapter:
             model_name=self.config.model_name,
             device=self.config.device,
             quantization=self.config.quantization,
-            quantization_config=self.config.quantization_config,
             mixed_precision=self.config.mixed_precision,
             lora_rank=self.config.lora_rank,
             lora_alpha=self.config.lora_alpha,
             lora_dropout=self.config.lora_dropout,
             lora_target_modules=self.config.lora_target_modules,
-            use_flash_attention=self.config.use_flash_attention,
             learning_rate=self.config.learning_rate,
             num_epochs=self.config.num_epochs,
             batch_size=self.config.batch_size,
@@ -336,8 +324,6 @@ class TTTAdapter:
             temperature=self.config.temperature,
             max_sequence_length=self.config.max_length,
             gradient_checkpointing=self.config.gradient_checkpointing,
-            selective_checkpointing=self.config.selective_checkpointing,
-            checkpointing_layers=self.config.checkpointing_layers,
             memory_limit_mb=self.config.memory_limit_mb,
             augmentation_types=augmentation_types,
             cache_dir=self.config.cache_dir,
@@ -363,15 +349,15 @@ class TTTAdapter:
             "balanced": MemoryOptimizationLevel.BALANCED,
             "aggressive": MemoryOptimizationLevel.AGGRESSIVE
         }
-        
+
         optimization_level = level_mapping.get(
             self.config.memory_optimization_level,
             MemoryOptimizationLevel.BALANCED
         )
-        
+
         # Calculate gradient checkpointing ratio based on layers
         checkpointing_ratio = 1.0 / self.config.checkpointing_layers if self.config.selective_checkpointing else 0.3
-        
+
         return MemoryOptimizationConfig(
             level=optimization_level,
             gradient_checkpointing_ratio=checkpointing_ratio,
@@ -384,7 +370,7 @@ class TTTAdapter:
             memory_defragmentation=True,
             gradient_accumulation_steps=self.config.gradient_accumulation_steps
         )
-    
+
     def _create_progressive_inference_engine(self) -> ProgressiveInferenceEngine:
         """Create progressive inference engine with timeout configuration."""
         timeout_config = TimeoutConfig(
@@ -397,15 +383,14 @@ class TTTAdapter:
             check_interval=1.0,
             enable_progressive_reduction=True,
         )
-        
+
         return ProgressiveInferenceEngine(timeout_config)
 
-@resilient_operation(
+    @resilient_operation(
         max_attempts=3,
         delay_seconds=2.0,
         handle_oom=True,
-        handle_cuda_errors=True,
-        handle_checkpoint_errors=True
+        handle_cuda_errors=True
     )
     def initialize_model(self) -> None:
         """Initialize MIT TTT strategy with comprehensive error handling and recovery."""
@@ -413,38 +398,38 @@ class TTTAdapter:
             # Use model loading circuit breaker
             async def load_model():
                 return self.mit_ttt_strategy.initialize_model()
-            
+
             # Execute with circuit breaker protection
             import asyncio
             loop = asyncio.new_event_loop() if not asyncio.get_event_loop().is_running() else asyncio.get_event_loop()
             if loop.is_running():
                 # If event loop is already running, create a task
-                task = loop.create_task(self.model_loading_breaker.call(load_model))
+                loop.create_task(self.model_loading_breaker.call(load_model))
             else:
                 # Run in new event loop
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(self.model_loading_breaker.call(load_model))
-            
+
             # Apply memory optimizations to the model if available
             if hasattr(self.mit_ttt_strategy.trainer, 'model') and self.mit_ttt_strategy.trainer.model is not None:
                 logger.info("Applying advanced memory optimizations to TTT model")
-                
+
                 try:
                     self.optimized_model_wrapper = apply_memory_optimizations(
                         self.mit_ttt_strategy.trainer.model,
                         self.memory_opt_config.level
                     )
                     logger.info(f"Memory optimizations applied with level: {self.memory_opt_config.level.value}")
-                    
+
                     # Apply inference optimizations with error handling
                     self._apply_inference_optimizations()
-                    
+
                     # Log optimization details
                     if self.config.selective_checkpointing:
                         logger.info(f"Selective gradient checkpointing enabled: every {self.config.checkpointing_layers} layers")
                     if self.config.mixed_precision:
                         logger.info("Mixed precision training enabled with automatic loss scaling")
-                        
+
                 except Exception as opt_error:
                     logger.warning(f"Memory optimizations failed: {opt_error}")
                     # Continue without optimizations rather than fail completely
@@ -456,7 +441,7 @@ class TTTAdapter:
                     )
             else:
                 logger.warning("Model not available for memory optimization")
-                
+
         except Exception as e:
             logger.error(f"Model initialization failed: {e}")
             # Report the error
@@ -473,9 +458,9 @@ class TTTAdapter:
         if not hasattr(self.mit_ttt_strategy.trainer, 'model') or self.mit_ttt_strategy.trainer.model is None:
             logger.warning("No model available for inference optimizations")
             return
-        
+
         model = self.mit_ttt_strategy.trainer.model
-        
+
         try:
             # Apply torch.compile for inference speedup
             if self.config.enable_torch_compile and hasattr(torch, 'compile'):
@@ -484,13 +469,13 @@ class TTTAdapter:
                     logger.info("Applied torch.compile for inference optimization")
                 except Exception as e:
                     logger.warning(f"torch.compile failed: {e}")
-            
+
             # Enable KV cache optimizations
             if self.config.enable_kv_cache_optimization:
                 if hasattr(model.config, 'use_cache'):
                     model.config.use_cache = True
                     logger.info("KV cache enabled for inference")
-                
+
                 # Enable static cache if supported
                 if self.config.enable_static_cache and hasattr(model, 'enable_static_cache'):
                     try:
@@ -498,10 +483,10 @@ class TTTAdapter:
                         logger.info("Static KV cache enabled")
                     except Exception as e:
                         logger.warning(f"Static cache enabling failed: {e}")
-            
+
             # Configure for inference mode
             model.eval()
-            
+
             # Enable memory efficient attention if available
             if hasattr(model, 'enable_xformers_memory_efficient_attention'):
                 try:
@@ -509,12 +494,12 @@ class TTTAdapter:
                     logger.info("Memory efficient attention enabled for inference")
                 except Exception as e:
                     logger.warning(f"Memory efficient attention failed: {e}")
-            
+
             logger.info("Inference optimizations applied successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to apply inference optimizations: {e}")
-    
+
     def get_memory_optimization_stats(self) -> dict[str, Any]:
         """Get comprehensive memory optimization statistics."""
         if self.optimized_model_wrapper is not None:
@@ -530,12 +515,11 @@ class TTTAdapter:
             }
         }
 
-@resilient_operation(
+    @resilient_operation(
         max_attempts=3,
         delay_seconds=2.0,
         handle_oom=True,
-        handle_cuda_errors=True,
-        handle_checkpoint_errors=True
+        handle_cuda_errors=True
     )
     def adapt_to_task(self, task: ARCTask) -> TTTAdaptation:
         """
@@ -549,7 +533,7 @@ class TTTAdapter:
         """
         adaptation_id = f"mit_ttt_{task.task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         adaptation_start = time.time()
-        
+
         error_context = ErrorContext(
             operation="ttt_adaptation",
             model_name=self.config.model_name,
@@ -560,7 +544,7 @@ class TTTAdapter:
             # Use training circuit breaker for protection
             async def perform_adaptation():
                 return self.mit_ttt_strategy.solve_task(task, use_self_consistency=True)
-            
+
             # Execute with fallback strategy
             async def adaptation_with_fallback():
                 return await self.training_fallback.execute(
@@ -571,7 +555,7 @@ class TTTAdapter:
                         "simple_training": {"per_instance_epochs": 1, "batch_size": 1}
                     }
                 )
-            
+
             # Execute with circuit breaker and error handling
             import asyncio
             try:
@@ -582,7 +566,7 @@ class TTTAdapter:
                     prediction, metadata = task_result.result() if hasattr(task_result, 'result') else (None, {})
                 else:
                     prediction, metadata = loop.run_until_complete(self.training_breaker.call(adaptation_with_fallback))
-            except:
+            except Exception:
                 # Fallback to synchronous execution
                 prediction, metadata = self.mit_ttt_strategy.solve_task(task, use_self_consistency=True)
 
@@ -623,7 +607,7 @@ class TTTAdapter:
 
             # Store adaptation
             self.adaptations[task.task_id] = adaptation
-            
+
             # Cache successful batch size
             if metadata.get("success", False) and hasattr(self, 'oom_handler'):
                 self.oom_handler.cache_successful_batch_size("ttt_adaptation", self.config.batch_size)
@@ -632,7 +616,7 @@ class TTTAdapter:
 
         except Exception as e:
             adaptation_time = time.time() - adaptation_start
-            
+
             # Report error with comprehensive context
             self.error_reporter.report_error(
                 e,
@@ -665,7 +649,7 @@ class TTTAdapter:
             self.adaptations[task.task_id] = adaptation
             return adaptation
 
-@resilient_operation(
+    @resilient_operation(
         max_attempts=2,  # Fewer retries for inference to stay within time limits
         delay_seconds=1.0,
         handle_oom=True,
@@ -684,13 +668,13 @@ class TTTAdapter:
         """
         start_time = datetime.now()
         inference_start = time.time()
-        
+
         # Use batch_size parameter if provided (for OOM recovery)
         if batch_size is not None:
             original_batch_size = self.config.batch_size
             self.config.batch_size = batch_size
             logger.info(f"Using adjusted batch size: {batch_size}")
-        
+
         error_context = ErrorContext(
             operation="ttt_inference",
             model_name=self.config.model_name,
@@ -705,7 +689,7 @@ class TTTAdapter:
                 predictions = [prediction] if prediction is not None else [task.test_input]
                 success = result.success
                 confidence = 0.8 if result.success else 0.0
-                
+
                 # Create metadata from progressive inference result
                 metadata = result.metadata or {}
                 metadata.update({
@@ -718,10 +702,10 @@ class TTTAdapter:
                     'timeout_triggered': result.timeout_triggered,
                     'error_recovery_used': False
                 })
-                
+
                 if result.error_message:
                     metadata['error'] = result.error_message
-                    
+
             else:
                 # Use circuit breaker protection for inference
                 async def perform_inference():
@@ -730,7 +714,7 @@ class TTTAdapter:
                             task,
                             use_self_consistency=True
                         )
-                
+
                 # Execute with fallback strategy
                 async def inference_with_fallback():
                     return await self.inference_fallback.execute(
@@ -741,7 +725,7 @@ class TTTAdapter:
                             "emergency_fallback": {"return_input_copy": True}
                         }
                     )
-                
+
                 # Execute with error handling
                 import asyncio
                 try:
@@ -751,7 +735,7 @@ class TTTAdapter:
                         prediction, metadata = task_result.result() if hasattr(task_result, 'result') else (task.test_input, {})
                     else:
                         prediction, metadata = loop.run_until_complete(self.inference_breaker.call(inference_with_fallback))
-                except:
+                except Exception:
                     # Fallback to synchronous execution
                     with self._inference_timeout_context():
                         prediction, metadata = self.mit_ttt_strategy.solve_task(
@@ -762,7 +746,7 @@ class TTTAdapter:
                 predictions = [prediction]
                 success = metadata.get('success', False)
                 confidence = metadata.get('confidence', 0.0)
-                
+
                 # Calculate inference time
                 inference_time = time.time() - inference_start
                 metadata.update({
@@ -772,7 +756,7 @@ class TTTAdapter:
                     'error_recovery_used': metadata.get('fallback_used', False),
                     'circuit_breaker_stats': self.inference_breaker.get_stats()
                 })
-                
+
                 if not metadata['within_time_limit']:
                     logger.warning(f"Inference time ({inference_time:.1f}s) exceeded limit ({self.config.max_inference_time:.1f}s)")
 
@@ -789,7 +773,7 @@ class TTTAdapter:
                     created_at=datetime.now(),
                 )
                 self.adaptations[task.task_id] = adaptation
-                
+
             # Cache successful configuration
             if success:
                 self.oom_handler.cache_successful_batch_size("ttt_inference", self.config.batch_size)
@@ -801,14 +785,14 @@ class TTTAdapter:
             predictions = [prediction]
             success = False
             confidence = 0.0
-            
+
             self.error_reporter.report_error(
                 e,
                 error_context,
                 ErrorSeverity.HIGH,
                 ErrorCategory.INFERENCE
             )
-            
+
             metadata = {
                 'success': False,
                 'error': f'Inference timeout after {inference_time:.1f}s',
@@ -820,7 +804,7 @@ class TTTAdapter:
                 'circuit_breaker_stats': self.inference_breaker.get_stats()
             }
             logger.error(f"Inference timeout after {inference_time:.1f}s for task {task.task_id}")
-            
+
         except Exception as e:
             # Handle other errors with comprehensive reporting
             inference_time = time.time() - inference_start
@@ -828,7 +812,7 @@ class TTTAdapter:
             predictions = [prediction]
             success = False
             confidence = 0.0
-            
+
             # Report error with context
             self.error_reporter.report_error(
                 e,
@@ -836,7 +820,7 @@ class TTTAdapter:
                 ErrorSeverity.HIGH,
                 ErrorCategory.INFERENCE
             )
-            
+
             metadata = {
                 'success': False,
                 'error': str(e),
@@ -848,7 +832,7 @@ class TTTAdapter:
                 'circuit_breaker_stats': self.inference_breaker.get_stats(),
                 'fallback_strategy_stats': self.inference_fallback.get_stats()
             }
-        
+
         finally:
             # Restore original batch size if it was modified
             if batch_size is not None:
@@ -911,11 +895,11 @@ class TTTAdapter:
             })
 
         return examples
-    
+
     def _solve_with_progressive_inference(self, task: ARCTask):
         """Solve task using progressive inference with fallbacks."""
         logger.info(f"Starting progressive inference for task: {task.task_id}")
-        
+
         def primary_solve_function(arc_task, **kwargs):
             """Primary solve function with full quality."""
             logger.debug("Executing primary solve function")
@@ -924,7 +908,7 @@ class TTTAdapter:
                 use_self_consistency=True
             )
             return prediction, metadata
-        
+
         def fast_solve_function(arc_task, **kwargs):
             """Fast solve with reduced quality."""
             logger.debug("Executing fast solve fallback")
@@ -935,9 +919,9 @@ class TTTAdapter:
                 max_tokens=200,
             )
             return prediction, metadata
-        
+
         def deterministic_solve_function(arc_task, **kwargs):
-            """Deterministic solve with greedy decoding.""" 
+            """Deterministic solve with greedy decoding."""
             logger.debug("Executing deterministic solve fallback")
             prediction, metadata = self.mit_ttt_strategy.solve_task(
                 arc_task,
@@ -946,7 +930,7 @@ class TTTAdapter:
                 max_tokens=150,
             )
             return prediction, metadata
-        
+
         def minimal_solve_function(arc_task, **kwargs):
             """Minimal solve with very basic output."""
             logger.debug("Executing minimal solve fallback")
@@ -961,7 +945,7 @@ class TTTAdapter:
             except Exception as e:
                 logger.warning(f"Minimal solve failed: {e}, returning input copy")
                 return arc_task.test_input, {"success": False, "error": str(e)}
-        
+
         # Create fallback function mapping
         fallback_functions = {
             FallbackLevel.FAST_SAMPLING: fast_solve_function,
@@ -969,40 +953,40 @@ class TTTAdapter:
             FallbackLevel.SHORT_GENERATION: deterministic_solve_function,  # Same as deterministic
             FallbackLevel.MINIMAL_OUTPUT: minimal_solve_function,
         }
-        
+
         # Execute with progressive fallbacks
         result = self.progressive_inference_engine.execute_with_fallbacks(
             primary_solve_function,
             fallback_functions,
             task
         )
-        
+
         # If the output is a tuple (prediction, metadata), extract the prediction
         if isinstance(result.output, tuple) and len(result.output) == 2:
             prediction, solve_metadata = result.output
             result.output = prediction
-            
+
             # Merge metadata
             if result.metadata is None:
                 result.metadata = {}
             result.metadata.update(solve_metadata)
-        
+
         logger.info(f"Progressive inference completed: level={result.fallback_level.value}, success={result.success}, time={result.execution_time:.2f}s")
         return result
-    
+
     @contextmanager
     def _inference_timeout_context(self):
         """Context manager to enforce inference timeout."""
         import signal
-        
+
         def timeout_handler(signum, frame):
             raise TimeoutError(f"Inference exceeded {self.config.max_inference_time}s limit")
-        
+
         # Set up timeout signal (Unix systems only)
         if hasattr(signal, 'SIGALRM'):
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(int(self.config.max_inference_time))
-            
+
             try:
                 yield
             finally:
@@ -1038,10 +1022,10 @@ class TTTAdapter:
                 allocated = torch.cuda.memory_allocated() / 1024 / 1024
                 reserved = torch.cuda.memory_reserved() / 1024 / 1024
                 return max(allocated, reserved)
-        except:
+        except Exception:
             pass
         return 0.0
-    
+
     def _validate_memory_constraints(self) -> bool:
         """Validate that 8B model fits within memory constraints."""
         try:
@@ -1050,18 +1034,18 @@ class TTTAdapter:
                 total_memory = torch.cuda.get_device_properties(0).total_memory / 1024 / 1024
                 current_usage = self._estimate_gpu_memory()
                 available = total_memory - current_usage
-                
+
                 # 8B model with 4-bit quantization should use ~6-8GB
                 estimated_usage = 8000  # Conservative estimate in MB
                 return available >= estimated_usage
-        except:
+        except Exception:
             pass
         return True  # Assume valid if cannot check
 
     def cleanup(self) -> None:
         """Clean up resources and free memory with comprehensive error handling component cleanup."""
         logger.info("Starting comprehensive TTT Adapter cleanup")
-        
+
         try:
             # Stop health monitoring
             if hasattr(self, 'health_monitor'):
@@ -1072,29 +1056,29 @@ class TTTAdapter:
                         loop.create_task(self.health_monitor.stop_monitoring())
                     else:
                         loop.run_until_complete(self.health_monitor.stop_monitoring())
-                except:
+                except Exception:
                     pass
-            
+
             # Clean up optimized model wrapper
             if self.optimized_model_wrapper is not None:
                 if hasattr(self.optimized_model_wrapper, 'memory_monitor'):
                     self.optimized_model_wrapper.memory_monitor.stop_monitoring_thread()
                 del self.optimized_model_wrapper
                 self.optimized_model_wrapper = None
-            
+
             # Clean up MIT TTT strategy
             if hasattr(self, 'mit_ttt_strategy'):
                 self.mit_ttt_strategy.cleanup()
 
             # Clear adaptations
             self.adaptations.clear()
-            
+
             # Generate final error report summary
             if hasattr(self, 'error_reporter'):
                 error_summary = self.error_reporter.get_error_summary()
                 if error_summary.get('total_errors', 0) > 0:
                     logger.info(f"Session error summary: {error_summary}")
-            
+
             # Log circuit breaker statistics
             if hasattr(self, 'model_loading_breaker'):
                 logger.info(f"Model loading circuit breaker stats: {self.model_loading_breaker.get_stats()}")
@@ -1102,13 +1086,13 @@ class TTTAdapter:
                 logger.info(f"Training circuit breaker stats: {self.training_breaker.get_stats()}")
             if hasattr(self, 'inference_breaker'):
                 logger.info(f"Inference circuit breaker stats: {self.inference_breaker.get_stats()}")
-            
+
             # Log fallback strategy statistics
             if hasattr(self, 'training_fallback'):
                 logger.info(f"Training fallback stats: {self.training_fallback.get_stats()}")
             if hasattr(self, 'inference_fallback'):
                 logger.info(f"Inference fallback stats: {self.inference_fallback.get_stats()}")
-            
+
             # Log retry strategy statistics
             if hasattr(self, 'retry_strategy'):
                 logger.info(f"Retry strategy stats: {self.retry_strategy.get_recovery_stats()}")
@@ -1119,73 +1103,72 @@ class TTTAdapter:
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                     torch.cuda.synchronize()
-            except:
+            except Exception:
                 pass
-                
+
         except Exception as cleanup_error:
             logger.error(f"Error during cleanup: {cleanup_error}")
-            
+
         logger.info("TTT Adapter cleanup complete with comprehensive error handling")
-    
+
     def _setup_error_fallbacks(self) -> None:
         """Setup error-specific fallback strategies."""
-        import torch
-        
+
         # Training fallbacks
         def reduce_batch_size_fallback(*args, **kwargs):
             """Fallback that reduces batch size for training."""
             kwargs["batch_size"] = max(1, kwargs.get("batch_size", self.config.batch_size) // 2)
             return self.mit_ttt_strategy.solve_task(*args, **kwargs)
-        
+
         def disable_augmentation_fallback(*args, **kwargs):
             """Fallback that disables augmentation."""
             kwargs["use_augmentation"] = False
             return self.mit_ttt_strategy.solve_task(*args, **kwargs)
-        
+
         def simple_training_fallback(*args, **kwargs):
             """Fallback with minimal training configuration."""
             kwargs.update({"per_instance_epochs": 1, "batch_size": 1, "use_augmentation": False})
             return self.mit_ttt_strategy.solve_task(*args, **kwargs)
-        
+
         # Add OOM-specific fallbacks
-        self.training_fallback.add_oom_fallback(reduce_batch_size_fallback, priority=20)
+        self.training_fallback.add_fallback(reduce_batch_size_fallback, priority=20)
         self.training_fallback.add_fallback(disable_augmentation_fallback, priority=15)
         self.training_fallback.add_fallback(simple_training_fallback, priority=10)
-        
+
         # Inference fallbacks
         def fast_inference_fallback(*args, **kwargs):
             """Fast inference without self-consistency."""
             kwargs["use_self_consistency"] = False
             kwargs["temperature"] = 0.0
             return self.mit_ttt_strategy.solve_task(*args, **kwargs)
-        
+
         def minimal_inference_fallback(*args, **kwargs):
             """Minimal inference with very short generation."""
             kwargs.update({"use_self_consistency": False, "max_tokens": 100, "temperature": 0.0})
             return self.mit_ttt_strategy.solve_task(*args, **kwargs)
-        
+
         def emergency_fallback(*args, **kwargs):
             """Emergency fallback that returns input copy."""
             task = args[0] if args else kwargs.get('task')
             if task:
                 return task.test_input, {"success": False, "fallback_used": True, "fallback_level": "emergency"}
             return None, {"success": False, "fallback_used": True, "fallback_level": "emergency"}
-        
-        self.inference_fallback.add_oom_fallback(fast_inference_fallback, priority=20)
+
+        self.inference_fallback.add_fallback(fast_inference_fallback, priority=20)
         self.inference_fallback.add_fallback(minimal_inference_fallback, priority=15)
         self.inference_fallback.add_fallback(emergency_fallback, priority=5)
-    
+
     def _setup_health_checks(self) -> None:
         """Setup health monitoring checks for critical components."""
         def check_model_health() -> bool:
             """Check if model is loaded and functional."""
             try:
-                return (hasattr(self, 'mit_ttt_strategy') and 
-                       hasattr(self.mit_ttt_strategy, 'trainer') and 
+                return (hasattr(self, 'mit_ttt_strategy') and
+                       hasattr(self.mit_ttt_strategy, 'trainer') and
                        self.mit_ttt_strategy.trainer is not None)
-            except:
+            except Exception:
                 return False
-        
+
         def check_gpu_health() -> bool:
             """Check GPU availability and memory."""
             try:
@@ -1197,16 +1180,16 @@ class TTTAdapter:
                 del test_tensor
                 torch.cuda.empty_cache()
                 return True
-            except:
+            except Exception:
                 return False
-        
+
         def check_checkpoint_dir() -> bool:
             """Check if checkpoint directory is accessible."""
             try:
                 return self.config.checkpoint_dir.exists() and self.config.checkpoint_dir.is_dir()
-            except:
+            except Exception:
                 return False
-        
+
         # Add health checks
         self.health_monitor.add_health_check(
             "model", check_model_health, recovery_func=self.initialize_model, critical=True
@@ -1217,7 +1200,7 @@ class TTTAdapter:
         self.health_monitor.add_health_check(
             "checkpoint_dir", check_checkpoint_dir, critical=False
         )
-        
+
         # Start monitoring
         import asyncio
         try:
@@ -1226,10 +1209,10 @@ class TTTAdapter:
                 loop.create_task(self.health_monitor.start_monitoring())
             else:
                 loop.run_until_complete(self.health_monitor.start_monitoring())
-        except:
+        except Exception:
             logger.warning("Could not start health monitoring (async event loop not available)")
-    
-    def get_comprehensive_stats(self) -> Dict[str, Any]:
+
+    def get_comprehensive_stats(self) -> dict[str, Any]:
         """Get comprehensive statistics including error handling metrics."""
         stats = {
             "memory_optimization_stats": self.get_memory_optimization_stats(),
@@ -1241,26 +1224,26 @@ class TTTAdapter:
                 "gradient_checkpointing": self.config.gradient_checkpointing,
             }
         }
-        
+
         # Add error handling stats if available
         if hasattr(self, 'error_reporter'):
             stats["error_summary"] = self.error_reporter.get_error_summary()
-        
+
         if hasattr(self, 'oom_handler'):
             stats["oom_stats"] = {
                 "batch_size_history": self.oom_handler.batch_size_history,
                 "cached_batch_sizes": self.oom_handler.batch_size_cache,
             }
-        
+
         if hasattr(self, 'retry_strategy'):
             stats["retry_stats"] = self.retry_strategy.get_recovery_stats()
-        
+
         if hasattr(self, 'training_fallback'):
             stats["training_fallback_stats"] = self.training_fallback.get_stats()
-        
+
         if hasattr(self, 'inference_fallback'):
             stats["inference_fallback_stats"] = self.inference_fallback.get_stats()
-        
+
         # Circuit breaker stats
         circuit_breaker_stats = {}
         if hasattr(self, 'model_loading_breaker'):
@@ -1269,12 +1252,12 @@ class TTTAdapter:
             circuit_breaker_stats["training"] = self.training_breaker.get_stats()
         if hasattr(self, 'inference_breaker'):
             circuit_breaker_stats["inference"] = self.inference_breaker.get_stats()
-        
+
         if circuit_breaker_stats:
             stats["circuit_breaker_stats"] = circuit_breaker_stats
-        
+
         # Health monitoring stats
         if hasattr(self, 'health_monitor'):
             stats["health_status"] = self.health_monitor.get_health_status()
-        
+
         return stats

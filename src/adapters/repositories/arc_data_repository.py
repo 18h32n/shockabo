@@ -272,7 +272,6 @@ class ARCDataRepository:
         if self.use_real_dataset and task_source in self._real_data_cache:
             # Load from real dataset cache
             challenges = self._real_data_cache[task_source]["challenges"]
-            solutions = self._real_data_cache[task_source]["solutions"]
 
             task_ids = list(challenges.keys())
             if limit:

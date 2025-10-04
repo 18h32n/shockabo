@@ -30,7 +30,7 @@ class TaskRecord(Base):
     train_examples = Column(JSON, nullable=False)
     test_input = Column(JSON, nullable=False)
     test_output = Column(JSON, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    task_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -48,7 +48,7 @@ class SubmissionRecord(Base):
     confidence_score = Column(Float, nullable=False)
     processing_time_ms = Column(Integer, nullable=False)
     resource_usage = Column(JSON, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    submission_metadata = Column(JSON, nullable=True)
     submitted_at = Column(DateTime, nullable=False)
     accuracy = Column(Float, nullable=True)
     perfect_match = Column(Integer, nullable=True)  # 0 or 1
@@ -121,7 +121,7 @@ class TaskRepository:
                 ],
                 test_input=task.test_input,
                 test_output=task.test_output,
-                metadata=task.metadata or {}
+                task_metadata=task.metadata or {}
             )
 
             # Save to database
@@ -156,15 +156,7 @@ class TaskRepository:
                 return None
 
             # Convert database record to domain model
-            from src.domain.models import Example
-
-            train_examples = [
-                Example(
-                    input_grid=ex["input"],
-                    output_grid=ex["output"]
-                )
-                for ex in record.train_examples
-            ]
+            train_examples = record.train_examples
 
             task = ARCTask(
                 task_id=record.task_id,
@@ -172,7 +164,7 @@ class TaskRepository:
                 train_examples=train_examples,
                 test_input=record.test_input,
                 test_output=record.test_output,
-                metadata=record.metadata
+                metadata=record.task_metadata
             )
 
             logger.info("task_retrieved", task_id=task_id)
@@ -206,7 +198,7 @@ class TaskRepository:
                 confidence_score=submission.confidence_score,
                 processing_time_ms=submission.processing_time_ms,
                 resource_usage=submission.resource_usage,
-                metadata=submission.metadata,
+                submission_metadata=submission.metadata,
                 submitted_at=submission.submitted_at,
                 accuracy=evaluation_result.pixel_accuracy.accuracy if evaluation_result else None,
                 perfect_match=1 if evaluation_result and evaluation_result.pixel_accuracy.perfect_match else 0,
@@ -333,7 +325,7 @@ class TaskRepository:
                     confidence_score=record.confidence_score,
                     processing_time_ms=record.processing_time_ms,
                     resource_usage=record.resource_usage,
-                    metadata=record.metadata,
+                    metadata=record.submission_metadata,
                     submitted_at=record.submitted_at
                 )
                 submissions.append(submission)

@@ -54,7 +54,7 @@ class InferenceOptimizer:
     def __init__(self, time_limit_seconds: float = 432):  # 7.2 minutes
         """
         Initialize inference optimizer.
-        
+
         Args:
             time_limit_seconds: Maximum allowed inference time
         """
@@ -438,7 +438,7 @@ Generate the solution with full reasoning:""",
             optimization_analysis[opt_name]["profiles"].append(profile)
 
         # Calculate statistics for each optimization
-        for opt_name, data in optimization_analysis.items():
+        for _opt_name, data in optimization_analysis.items():
             profiles = data["profiles"]
             data["avg_time"] = sum(p.inference_time_seconds for p in profiles) / len(profiles)
             data["avg_throughput"] = sum(p.tokens_per_second for p in profiles) / len(profiles)
@@ -549,7 +549,7 @@ def main():
     logger.info("Starting inference optimization benchmarking...")
     model_name = "microsoft/DialoGPT-large"  # Use this for testing instead of 8B model
 
-    results = optimizer.run_comprehensive_benchmark(model_name)
+    optimizer.run_comprehensive_benchmark(model_name)
 
     # Generate report
     report_path = "docs/qa/assessments/inference_optimization_poc_results.json"

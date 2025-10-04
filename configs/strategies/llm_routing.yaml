@@ -1,0 +1,168 @@
+# LLM Routing Configuration for Smart Model Selection
+# This configuration defines how tasks are routed to different LLM tiers based on complexity
+
+llm_routing:
+  # Complexity detection configuration
+  complexity_detection:
+    # Feature weights for complexity scoring (must sum to 1.0)
+    features:
+      grid_size_score: 0.25      # Weight for grid size complexity
+      pattern_complexity: 0.30    # Weight for pattern recognition difficulty
+      color_diversity: 0.20       # Weight for color variation
+      transformation_hints: 0.15  # Weight for transformation complexity
+      example_consistency: 0.10   # Weight for training example consistency
+    
+    # Complexity thresholds for classification
+    thresholds:
+      simple: 0.3        # Below this = simple task
+      medium: 0.6        # Below this = medium task
+      complex: 0.85      # Below this = complex task
+      breakthrough: 0.95 # Above this = breakthrough difficulty
+
+  # Model tier configurations
+  model_tiers:
+    # Tier 1: Simple tasks (60% expected)
+    tier_1:
+      name: "Qwen2.5-Coder"
+      model_id: "qwen/qwen-2.5-coder-32b-instruct"
+      complexity_range: [0.0, 0.3]
+      cost_per_million_tokens: 0.15
+      max_tokens: 4096
+      temperature: 0.7
+      timeout_seconds: 20
+      retry_attempts: 3
+      api_endpoint: "${OPENROUTER_API_ENDPOINT:-https://openrouter.ai/api/v1/chat/completions}"
+      
+    # Tier 2: Medium complexity (25% expected)
+    tier_2:
+      name: "Gemini 2.5 Flash"
+      model_id: "google/gemini-2.5-flash"
+      complexity_range: [0.3, 0.6]
+      cost_input: 0.31      # per million tokens
+      cost_output: 2.62     # per million tokens
+      max_tokens: 8192
+      temperature: 0.8
+      timeout_seconds: 30
+      retry_attempts: 3
+      api_endpoint: "${GOOGLE_AI_API_ENDPOINT:-https://generativelanguage.googleapis.com/v1beta/models/}"
+      
+    # Tier 3: Complex tasks (10% expected)
+    tier_3:
+      name: "GLM-4.5"
+      model_id: "glm-4-plus"
+      complexity_range: [0.6, 0.85]
+      cost_input: 0.59      # per million tokens
+      cost_output: 2.19     # per million tokens
+      max_tokens: 16384
+      temperature: 0.9
+      timeout_seconds: 45
+      retry_attempts: 3
+      api_endpoint: "${OPENROUTER_API_ENDPOINT:-https://openrouter.ai/api/v1/chat/completions}"
+      
+    # Tier 4: Breakthrough tasks (5% expected)
+    tier_4:
+      name: "GPT-5"
+      model_id: "openai/gpt-5"
+      complexity_range: [0.85, 1.0]
+      cost_input: 1.25      # per million tokens
+      cost_output: 10.00    # per million tokens
+      max_tokens: 32768
+      temperature: 0.95
+      timeout_seconds: 60
+      retry_attempts: 2      # Fewer retries due to high cost
+      strict_budget_check: true
+      api_endpoint: "${OPENAI_API_ENDPOINT:-https://api.openai.com/v1/chat/completions}"
+      
+    # Fallback: Local model (always available)
+    fallback:
+      name: "Falcon Mamba 7B"
+      model_id: "falcon-mamba-7b"
+      complexity_range: [0.0, 1.0]  # Can handle any complexity as fallback
+      local: true
+      model_path: "${LOCAL_MODEL_PATH:-models/falcon-mamba-7b}"
+      max_tokens: 2048
+      temperature: 0.6
+      timeout_seconds: 120
+      inference_mode: "${LOCAL_INFERENCE_MODE:-ollama}"  # ollama, transformers, or custom
+
+  # Optimization settings
+  optimization:
+    # Caching configuration
+    cache:
+      enabled: true
+      similarity_threshold: 0.85   # Min similarity for cache hits
+      ttl_days: 30                 # Cache time-to-live
+      max_size_gb: 10.0           # Maximum cache size
+      
+    # Budget management
+    budget:
+      total_limit: 100.00         # Total budget in USD
+      warning_threshold: 0.8      # Warn at 80% usage
+      strict_enforcement: true    # Hard stop at limit
+      
+    # Performance optimization
+    performance:
+      batch_size: 10              # Programs per LLM batch
+      parallel_requests: 3        # Max concurrent API calls
+      request_timeout: 30         # Default timeout per request
+      
+    # A/B testing settings
+    ab_testing:
+      enabled: false
+      experiment_ratio: 0.1       # 10% of requests for experiments
+      
+  # Monitoring and analytics
+  monitoring:
+    track_model_performance: true
+    track_routing_decisions: true
+    track_cost_per_task: true
+    performance_log_interval: 3600  # Log stats every hour
+    
+    # Alerting thresholds
+    alerts:
+      high_cost_per_task: 5.00     # Alert if single task costs >$5
+      low_success_rate: 0.3        # Alert if model success <30%
+      high_latency_seconds: 60     # Alert if response >60s
+      
+  # Integration settings
+  integration:
+    # Program synthesis integration
+    program_synthesis:
+      llm_generation_enabled: true
+      llm_generation_ratio: 0.3    # 30% of programs from LLM
+      traditional_generation_ratio: 0.7  # 70% traditional methods
+      
+    # Evolution strategy integration  
+    evolution:
+      llm_seed_enabled: true
+      llm_seed_ratio: 0.2          # 20% of initial population
+      llm_mutation_enabled: true
+      llm_mutation_trigger: "stagnation"  # or "periodic"
+      
+# Environment-specific overrides
+environments:
+  development:
+    budget:
+      total_limit: 10.00           # Lower budget for dev
+    model_tiers:
+      tier_4:
+        enabled: false             # Disable GPT-5 in dev
+        
+  kaggle:
+    optimization:
+      performance:
+        parallel_requests: 2       # Reduce parallelism on Kaggle
+    model_tiers:
+      fallback:
+        inference_mode: "transformers"  # Use transformers on Kaggle
+        
+  colab:
+    model_tiers:
+      fallback:
+        model_path: "/content/models/falcon-mamba-7b"
+        
+  paperspace:
+    optimization:
+      performance:
+        parallel_requests: 5       # More parallelism on Paperspace
+        batch_size: 20

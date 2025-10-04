@@ -6,7 +6,10 @@ encryption and best practices for credential management.
 
 import base64
 import json
+import logging
 import os
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -112,7 +115,7 @@ class SecureCredentialManager:
             credentials[key] = {
                 'value': self._cipher.encrypt(value.encode()).decode(),
                 'metadata': metadata or {},
-                'stored_at': os.environ.get('CURRENT_TIME', 'unknown')
+                'stored_at': datetime.now().isoformat()
             }
 
             # Save credentials
@@ -204,7 +207,7 @@ class SecureCredentialManager:
             logger.error("credential_delete_failed", key=key, error=str(e))
             return False
 
-    def validate_credential(self, key: str, validator_func: callable | None = None) -> bool:
+    def validate_credential(self, key: str, validator_func: Callable[[str], bool] | None = None) -> bool:
         """Validate a stored credential.
 
         Args:
@@ -269,6 +272,266 @@ def get_credential_manager() -> SecureCredentialManager:
     if _credential_manager is None:
         _credential_manager = SecureCredentialManager()
     return _credential_manager
+
+
+class PlatformCredentialManager:
+    """Manages platform-specific credentials for rotation automation."""
+
+    def __init__(self, credential_manager: SecureCredentialManager = None):
+        self.credential_manager = credential_manager or get_credential_manager()
+        self.logger = logging.getLogger('platform_credentials')
+
+        # Platform-specific credential keys
+        self.platform_credentials = {
+            'kaggle': {
+                'username': 'KAGGLE_USERNAME',
+                'key': 'KAGGLE_KEY',
+                'api_token': 'KAGGLE_API_TOKEN'
+            },
+            'colab': {
+                'service_account': 'GOOGLE_SERVICE_ACCOUNT_KEY',
+                'project_id': 'GOOGLE_CLOUD_PROJECT',
+                'credentials_json': 'GOOGLE_APPLICATION_CREDENTIALS'
+            },
+            'paperspace': {
+                'api_key': 'PAPERSPACE_API_KEY',
+                'api_token': 'PAPERSPACE_API_TOKEN',
+                'project_id': 'PAPERSPACE_PROJECT_ID'
+            },
+            'gcs': {
+                'service_account_key': 'GCS_SERVICE_ACCOUNT_KEY',
+                'bucket_name': 'GCS_BUCKET_NAME',
+                'project_id': 'GCS_PROJECT_ID'
+            },
+            'email': {
+                'smtp_server': 'EMAIL_SMTP_SERVER',
+                'smtp_port': 'EMAIL_SMTP_PORT',
+                'username': 'EMAIL_USERNAME',
+                'password': 'EMAIL_PASSWORD',
+                'from_address': 'EMAIL_FROM_ADDRESS'
+            },
+            'wandb': {
+                'api_key': 'WANDB_API_KEY',
+                'entity': 'WANDB_ENTITY',
+                'project': 'WANDB_PROJECT'
+            }
+        }
+
+    def setup_platform_credentials(self) -> dict[str, bool]:
+        """Set up all platform credentials from environment variables.
+
+        Returns:
+            Dictionary mapping platform names to setup success status
+        """
+        results = {}
+
+        for platform, credentials in self.platform_credentials.items():
+            platform_result = True
+
+            for cred_name, env_var in credentials.items():
+                env_value = os.environ.get(env_var)
+                if env_value:
+                    key = f"{platform}_{cred_name}"
+                    success = self.credential_manager.store_credential(
+                        key,
+                        env_value,
+                        {
+                            'platform': platform,
+                            'env_var': env_var,
+                            'setup_time': datetime.now().isoformat()
+                        }
+                    )
+                    if not success:
+                        platform_result = False
+                        self.logger.error(f"Failed to store {platform} {cred_name}")
+                else:
+                    self.logger.warning(f"Missing environment variable: {env_var}")
+                    platform_result = False
+
+            results[platform] = platform_result
+
+        return results
+
+    def get_platform_credential(self, platform: str, credential_name: str) -> str | None:
+        """Get a specific platform credential.
+
+        Args:
+            platform: Platform name (kaggle, colab, paperspace, gcs, email, wandb)
+            credential_name: Credential name within the platform
+
+        Returns:
+            Credential value or None if not found
+        """
+        if platform not in self.platform_credentials:
+            self.logger.error(f"Unknown platform: {platform}")
+            return None
+
+        if credential_name not in self.platform_credentials[platform]:
+            self.logger.error(f"Unknown credential {credential_name} for platform {platform}")
+            return None
+
+        key = f"{platform}_{credential_name}"
+        env_var = self.platform_credentials[platform][credential_name]
+
+        return self.credential_manager.get_credential_with_fallback(key, env_var)
+
+    def get_all_platform_credentials(self, platform: str) -> dict[str, str | None]:
+        """Get all credentials for a specific platform.
+
+        Args:
+            platform: Platform name
+
+        Returns:
+            Dictionary mapping credential names to values
+        """
+        if platform not in self.platform_credentials:
+            return {}
+
+        result = {}
+        for cred_name in self.platform_credentials[platform]:
+            result[cred_name] = self.get_platform_credential(platform, cred_name)
+
+        return result
+
+    def validate_platform_credentials(self, platform: str) -> bool:
+        """Validate that all required credentials exist for a platform.
+
+        Args:
+            platform: Platform name to validate
+
+        Returns:
+            True if all credentials are present and valid
+        """
+        if platform not in self.platform_credentials:
+            return False
+
+        credentials = self.get_all_platform_credentials(platform)
+
+        # Check if all required credentials are present
+        for cred_name in self.platform_credentials[platform]:
+            if not credentials.get(cred_name):
+                self.logger.error(f"Missing credential {cred_name} for platform {platform}")
+                return False
+
+        return True
+
+    def validate_all_platforms(self) -> dict[str, bool]:
+        """Validate credentials for all platforms.
+
+        Returns:
+            Dictionary mapping platform names to validation results
+        """
+        results = {}
+        for platform in self.platform_credentials:
+            results[platform] = self.validate_platform_credentials(platform)
+        return results
+
+    def update_platform_credential(self, platform: str, credential_name: str, value: str) -> bool:
+        """Update a specific platform credential.
+
+        Args:
+            platform: Platform name
+            credential_name: Credential name
+            value: New credential value
+
+        Returns:
+            True if updated successfully
+        """
+        if platform not in self.platform_credentials:
+            self.logger.error(f"Unknown platform: {platform}")
+            return False
+
+        if credential_name not in self.platform_credentials[platform]:
+            self.logger.error(f"Unknown credential {credential_name} for platform {platform}")
+            return False
+
+        key = f"{platform}_{credential_name}"
+        return self.credential_manager.store_credential(
+            key,
+            value,
+            {
+                'platform': platform,
+                'credential_name': credential_name,
+                'updated_time': datetime.now().isoformat()
+            }
+        )
+
+    def get_platform_config(self, platform: str) -> dict[str, Any]:
+        """Get complete platform configuration including credentials.
+
+        Args:
+            platform: Platform name
+
+        Returns:
+            Platform configuration dictionary
+        """
+        credentials = self.get_all_platform_credentials(platform)
+
+        # Platform-specific configurations
+        configs = {
+            'kaggle': {
+                'api_base': 'https://www.kaggle.com/api/v1',
+                'gpu_hours_weekly': 30,
+                'session_timeout_hours': 12,
+                'max_concurrent_kernels': 2
+            },
+            'colab': {
+                'api_base': 'https://colab.research.google.com',
+                'gpu_hours_daily': 12,
+                'session_timeout_hours': 12,
+                'max_concurrent_sessions': 1
+            },
+            'paperspace': {
+                'api_base': 'https://api.paperspace.io',
+                'gpu_hours_daily': 6,
+                'session_timeout_hours': 6,
+                'max_concurrent_machines': 1
+            },
+            'gcs': {
+                'storage_limit_gb': 5,
+                'checkpoint_retention_days': 7,
+                'max_concurrent_uploads': 3
+            },
+            'email': {
+                'rate_limit_per_hour': 10,
+                'retry_attempts': 3,
+                'timeout_seconds': 30
+            },
+            'wandb': {
+                'storage_limit_gb': 100,
+                'api_base': 'https://api.wandb.ai'
+            }
+        }
+
+        config = configs.get(platform, {})
+        config['credentials'] = credentials
+        config['platform'] = platform
+
+        return config
+
+
+# Singleton instance
+_platform_credential_manager = None
+
+
+def get_platform_credential_manager() -> PlatformCredentialManager:
+    """Get singleton platform credential manager instance."""
+    global _platform_credential_manager
+    if _platform_credential_manager is None:
+        _platform_credential_manager = PlatformCredentialManager()
+    return _platform_credential_manager
+
+
+def setup_platform_credentials_from_env() -> dict[str, bool]:
+    """Convenience function to set up all platform credentials from environment."""
+    manager = get_platform_credential_manager()
+    return manager.setup_platform_credentials()
+
+
+def validate_all_platform_credentials() -> dict[str, bool]:
+    """Convenience function to validate all platform credentials."""
+    manager = get_platform_credential_manager()
+    return manager.validate_all_platforms()
 
 
 def setup_wandb_credential() -> bool:

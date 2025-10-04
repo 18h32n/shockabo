@@ -68,7 +68,7 @@ class AdaptiveBatchSizer:
     ):
         """
         Initialize adaptive batch sizer.
-        
+
         Args:
             initial_batch_size: Starting batch size
             max_batch_size: Maximum allowed batch size
@@ -92,10 +92,10 @@ class AdaptiveBatchSizer:
     def adjust_batch_size(self, current_memory_utilization: float) -> int:
         """
         Adjust batch size based on current memory utilization.
-        
+
         Args:
             current_memory_utilization: Current memory utilization (0.0-1.0)
-            
+
         Returns:
             New batch size
         """
@@ -165,7 +165,7 @@ class MemoryDefragmenter:
     def __init__(self, defrag_threshold: float = 0.3):
         """
         Initialize memory defragmenter.
-        
+
         Args:
             defrag_threshold: Fragmentation ratio threshold for triggering defrag
         """
@@ -243,7 +243,7 @@ class GradientAccumulator:
     ):
         """
         Initialize gradient accumulator.
-        
+
         Args:
             accumulation_steps: Number of steps to accumulate gradients
             max_grad_norm: Maximum gradient norm for clipping
@@ -318,7 +318,7 @@ class AdvancedMemoryMonitor:
     def __init__(self, monitoring_interval: float = 1.0):
         """
         Initialize advanced memory monitor.
-        
+
         Args:
             monitoring_interval: Monitoring interval in seconds
         """
@@ -493,7 +493,7 @@ class OptimizedModelWrapper:
     ):
         """
         Initialize optimized model wrapper.
-        
+
         Args:
             model: Model to optimize
             config: Memory optimization configuration
@@ -618,7 +618,7 @@ class OptimizedModelWrapper:
             # Optimizer step if accumulation is complete
             step_taken = False
             if self.gradient_accumulator.should_step():
-                grad_norm = self.gradient_accumulator.clip_gradients(self.model)
+                self.gradient_accumulator.clip_gradients(self.model)
                 optimizer.step()
                 optimizer.zero_grad()
                 step_taken = True
@@ -672,11 +672,11 @@ def apply_memory_optimizations(
 ) -> OptimizedModelWrapper:
     """
     Apply comprehensive memory optimizations to a model.
-    
+
     Args:
         model: Model to optimize
         level: Optimization level
-        
+
     Returns:
         Optimized model wrapper
     """

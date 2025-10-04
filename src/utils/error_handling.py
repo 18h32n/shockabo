@@ -14,6 +14,27 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
+# Import from comprehensive error handling for compatibility
+try:
+    from .comprehensive_error_handling import ErrorContext, ErrorSeverity
+except ImportError:
+    # Fallback definitions if comprehensive_error_handling is not available
+    from dataclasses import dataclass
+    from enum import Enum as FallbackEnum
+
+    class ErrorSeverity(FallbackEnum):
+        """Error severity levels (fallback)."""
+        CRITICAL = "critical"
+        HIGH = "high"
+        MEDIUM = "medium"
+        LOW = "low"
+
+    @dataclass
+    class ErrorContext:
+        """Error context information (fallback)."""
+        operation: str
+        additional_data: dict[str, Any] | None = None
+
 logger = structlog.get_logger(__name__)
 
 
@@ -106,7 +127,7 @@ class BaseEvaluationError(Exception):
         context: dict[str, Any] | None = None
     ):
         """Initialize evaluation error.
-        
+
         Args:
             message: Human-readable error message
             code: Standardized error code
@@ -122,11 +143,64 @@ class BaseEvaluationError(Exception):
         self.context = context or {}
 
 
+class ARCBaseException(BaseEvaluationError):
+    """ARC-specific base exception class.
+
+    This is the main exception class used throughout the ARC framework.
+    It extends BaseEvaluationError with ARC-specific functionality.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        error_code: ErrorCode = ErrorCode.SYSTEM_INTERNAL_ERROR,
+        severity: str | None = None,
+        context: dict[str, Any] | None = None,
+        suggestions: list[str] | None = None,
+        retry_after: int | None = None,
+        cause: Exception | None = None,
+        **kwargs
+    ):
+        """Initialize ARC base exception.
+
+        Args:
+            message: Human-readable error message
+            error_code: Standardized error code
+            severity: Error severity level (for compatibility)
+            context: Error context information
+            suggestions: Recovery suggestions
+            retry_after: Suggested retry delay in seconds
+            cause: Underlying cause exception
+            **kwargs: Additional keyword arguments for compatibility
+        """
+        # Convert context to appropriate format if needed
+        formatted_context = context or {}
+        if hasattr(context, 'additional_data'):
+            formatted_context = context.additional_data
+
+        super().__init__(
+            message=message,
+            code=error_code,
+            recovery_suggestions=suggestions,
+            context=formatted_context
+        )
+
+        # Additional ARC-specific attributes
+        self.severity = severity
+        self.retry_after = retry_after
+        self.cause = cause
+        self.error_code = error_code  # Alias for compatibility
+
+
 class AuthenticationError(BaseEvaluationError):
     """Authentication and authorization errors."""
 
     def __init__(self, message: str, code: ErrorCode = ErrorCode.AUTH_INVALID_TOKEN, **kwargs):
         super().__init__(message, code, **kwargs)
+
+
+AuthenticationException = AuthenticationError
+EvaluationException = BaseEvaluationError
 
 
 class ValidationError(BaseEvaluationError):
@@ -141,6 +215,8 @@ class TaskProcessingError(BaseEvaluationError):
 
     def __init__(self, message: str, code: ErrorCode = ErrorCode.TASK_PROCESSING_FAILED, **kwargs):
         super().__init__(message, code, **kwargs)
+
+
 
 
 class ExperimentError(BaseEvaluationError):
@@ -178,6 +254,128 @@ class WebSocketError(BaseEvaluationError):
         super().__init__(message, code, **kwargs)
 
 
+class DataNotFoundException(ARCBaseException):
+    """Exception raised when requested data cannot be found."""
+
+    def __init__(
+        self,
+        data_type: str,
+        identifier: str,
+        context: dict[str, Any] | None = None,
+        **kwargs
+    ):
+        """Initialize data not found exception.
+
+        Args:
+            data_type: Type of data that was not found (e.g., "task", "model", "file")
+            identifier: Identifier of the missing data
+            context: Additional context information
+            **kwargs: Additional arguments passed to ARCBaseException
+        """
+        message = f"{data_type.capitalize()} '{identifier}' not found"
+
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.TASK_NOT_FOUND,
+            context=context,
+            suggestions=[
+                f"Verify that {data_type} '{identifier}' exists",
+                f"Check {data_type} identifier spelling and format",
+                f"Ensure you have access to the {data_type}",
+                "Refresh data sources if needed"
+            ],
+            **kwargs
+        )
+
+        self.data_type = data_type
+        self.identifier = identifier
+
+
+# Aliases for backward compatibility
+TaskNotFoundException = DataNotFoundException
+DataNotFoundError = DataNotFoundException
+
+
+class ErrorLogger:
+    """Error logging utility for ARC framework.
+
+    Provides structured error logging with context and severity tracking.
+    This is a compatibility layer that works with the ARC error framework.
+    """
+
+    def __init__(self, logger_name: str = __name__):
+        """Initialize error logger.
+
+        Args:
+            logger_name: Name for the logger instance
+        """
+        self.logger = structlog.get_logger(logger_name)
+        self.errors = []
+
+    def log_error(
+        self,
+        error: ARCBaseException | Exception,
+        context: dict[str, Any] | None = None,
+        severity: str = "medium"
+    ):
+        """Log an error with context and severity.
+
+        Args:
+            error: The error to log
+            context: Additional context information
+            severity: Error severity level
+        """
+        error_data = {
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "severity": severity,
+            "timestamp": structlog.get_logger().info.__globals__.get('time', __import__('time')).time()
+        }
+
+        # Add context information
+        if context:
+            error_data["context"] = context
+
+        # Handle ARC-specific error attributes
+        if isinstance(error, ARCBaseException):
+            error_data.update({
+                "error_code": error.error_code.value if hasattr(error.error_code, 'value') else str(error.error_code),
+                "severity": error.severity or severity,
+                "recovery_suggestions": error.recovery_suggestions,
+                "arc_context": error.context
+            })
+
+        # Store for analysis
+        self.errors.append(error_data)
+
+        # Log based on severity
+        if severity.lower() in ["critical", "high"]:
+            self.logger.error("arc_error", **error_data)
+        else:
+            self.logger.warning("arc_error", **error_data)
+
+    def get_error_summary(self) -> dict[str, Any]:
+        """Get summary of logged errors.
+
+        Returns:
+            Dictionary containing error statistics and recent errors
+        """
+        if not self.errors:
+            return {"total_errors": 0, "recent_errors": []}
+
+        severity_counts = {}
+        for error in self.errors:
+            severity = error.get("severity", "unknown")
+            severity_counts[severity] = severity_counts.get(severity, 0) + 1
+
+        return {
+            "total_errors": len(self.errors),
+            "severity_distribution": severity_counts,
+            "recent_errors": self.errors[-5:],  # Last 5 errors
+            "error_types": list({error["error_type"] for error in self.errors})
+        }
+
+
 class ErrorHandler:
     """Centralized error handling utilities."""
 
@@ -187,11 +385,11 @@ class ErrorHandler:
         request_id: str | None = None
     ) -> ErrorResponse:
         """Create standardized error response.
-        
+
         Args:
             error: Error to format
             request_id: Optional request ID for tracking
-            
+
         Returns:
             Formatted error response
         """
@@ -228,10 +426,10 @@ class ErrorHandler:
     @staticmethod
     def get_http_status_code(error_code: ErrorCode) -> int:
         """Get appropriate HTTP status code for error code.
-        
+
         Args:
             error_code: Error code
-            
+
         Returns:
             HTTP status code
         """
@@ -297,7 +495,7 @@ class ErrorHandler:
         request_id: str | None = None
     ):
         """Log error with structured data.
-        
+
         Args:
             error: Error to log
             context: Optional context information
@@ -328,11 +526,11 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Handle request with error catching.
-        
+
         Args:
             request: FastAPI request
             call_next: Next middleware in chain
-            
+
         Returns:
             Response with error handling
         """
@@ -419,3 +617,111 @@ RECOVERY_STRATEGIES = {
         "Contact W&B support"
     ]
 }
+
+
+class ErrorRecovery:
+    """Error recovery utilities and decorators."""
+
+    # Recovery action constants
+    FAIL_FAST = "fail_fast"
+    RETRY = "retry"
+    FALLBACK = "fallback"
+    IGNORE = "ignore"
+
+    @staticmethod
+    def with_retry(
+        max_attempts: int = 3,
+        delay: float = 1.0,
+        backoff_multiplier: float = 2.0,
+        recovery_action: str = None,
+        retryable_exceptions: tuple = (Exception,)
+    ):
+        """Decorator for automatic retry functionality.
+
+        Args:
+            max_attempts: Maximum number of retry attempts
+            delay: Initial delay between retries in seconds
+            backoff_multiplier: Multiplier for exponential backoff
+            recovery_action: Recovery action to take (defaults to RETRY)
+            retryable_exceptions: Tuple of exceptions that should trigger retries
+        """
+        if recovery_action is None:
+            recovery_action = ErrorRecovery.RETRY
+
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                last_exception = None
+
+                for attempt in range(max_attempts):
+                    try:
+                        return func(*args, **kwargs)
+                    except retryable_exceptions as e:
+                        last_exception = e
+
+                        if attempt == max_attempts - 1:
+                            # Last attempt failed
+                            break
+
+                        # Calculate delay with exponential backoff
+                        wait_time = delay * (backoff_multiplier ** attempt)
+                        logger.warning(
+                            f"Function {func.__name__} failed on attempt {attempt + 1}/{max_attempts}, "
+                            f"retrying in {wait_time}s: {e}"
+                        )
+
+                        import time
+                        time.sleep(wait_time)
+
+                # All retries failed
+                if recovery_action == ErrorRecovery.FAIL_FAST:
+                    raise last_exception
+                elif recovery_action == ErrorRecovery.IGNORE:
+                    logger.error(f"Function {func.__name__} failed but ignoring due to recovery_action=IGNORE")
+                    return None
+                else:
+                    raise ARCBaseException(
+                        message=f"Function {func.__name__} failed after {max_attempts} attempts",
+                        error_code=ErrorCode.SYSTEM_INTERNAL_ERROR,
+                        cause=last_exception,
+                        suggestions=[
+                            "Check system resources and connectivity",
+                            "Verify function parameters",
+                            "Try increasing retry attempts or delay"
+                        ]
+                    ) from last_exception
+
+            return wrapper
+        return decorator
+
+    @staticmethod
+    def with_fallback(fallback_func):
+        """Decorator to provide fallback functionality.
+
+        Args:
+            fallback_func: Function to call if primary function fails
+        """
+        def decorator(primary_func):
+            def wrapper(*args, **kwargs):
+                try:
+                    return primary_func(*args, **kwargs)
+                except Exception as e:
+                    logger.warning(
+                        f"Primary function {primary_func.__name__} failed, "
+                        f"trying fallback {fallback_func.__name__}: {e}"
+                    )
+                    try:
+                        return fallback_func(*args, **kwargs)
+                    except Exception as fallback_error:
+                        raise ARCBaseException(
+                            message=f"Both primary function {primary_func.__name__} and fallback {fallback_func.__name__} failed",
+                            error_code=ErrorCode.SYSTEM_INTERNAL_ERROR,
+                            cause=fallback_error,
+                            suggestions=[
+                                "Check system state and dependencies",
+                                "Verify input parameters",
+                                "Consider implementing additional fallback strategies"
+                            ]
+                        ) from e
+
+            return wrapper
+        return decorator

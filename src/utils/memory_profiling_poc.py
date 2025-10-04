@@ -62,7 +62,7 @@ class MemoryProfiler:
     def __init__(self, memory_limit_mb: float = 24576):  # 24GB default
         """
         Initialize memory profiler.
-        
+
         Args:
             memory_limit_mb: GPU memory limit in MB
         """
@@ -115,12 +115,12 @@ class MemoryProfiler:
     ) -> ModelMemoryProfile:
         """
         Profile memory usage for loading a model with QLoRA.
-        
+
         Args:
             model_name: HuggingFace model name
             qlora_config: QLoRA configuration
             test_inference: Whether to test inference
-            
+
         Returns:
             Memory profile results
         """
@@ -131,7 +131,7 @@ class MemoryProfiler:
 
         # Get initial memory state
         memory_before = self.get_system_memory_mb()
-        gpu_stats_before = self.get_gpu_memory_stats()
+        self.get_gpu_memory_stats()
 
         # Reset peak memory tracking
         if torch.cuda.is_available():
@@ -445,7 +445,7 @@ def main():
 
     # Run tests
     logger.info("Starting 8B model memory profiling...")
-    results = profiler.test_8b_models()
+    profiler.test_8b_models()
 
     # Generate report
     report_path = "docs/qa/assessments/memory_profiling_poc_results.json"

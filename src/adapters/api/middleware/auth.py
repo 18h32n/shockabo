@@ -30,7 +30,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         jwt_manager: JWTManager | None = None
     ):
         """Initialize authentication middleware.
-        
+
         Args:
             app: FastAPI application instance
             protected_patterns: URL patterns that require authentication
@@ -69,10 +69,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
     def is_protected_endpoint(self, path: str) -> bool:
         """Check if an endpoint requires authentication.
-        
+
         Args:
             path: Request path to check
-            
+
         Returns:
             True if endpoint requires authentication
         """
@@ -91,10 +91,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
     def extract_token(self, request: Request) -> str | None:
         """Extract JWT token from request headers or query parameters.
-        
+
         Args:
             request: FastAPI request object
-            
+
         Returns:
             JWT token string if found, None otherwise
         """
@@ -117,10 +117,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
     async def authenticate_request(self, request: Request) -> dict[str, Any] | None:
         """Authenticate a request using JWT token.
-        
+
         Args:
             request: FastAPI request object
-            
+
         Returns:
             User info dictionary if authenticated, None otherwise
         """
@@ -168,12 +168,12 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         error_code: str = "authentication_required"
     ) -> JSONResponse:
         """Create a standardized authentication error response.
-        
+
         Args:
             request: FastAPI request object
             message: Error message
             error_code: Error code for client handling
-            
+
         Returns:
             JSON error response
         """
@@ -193,11 +193,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Process request with authentication middleware.
-        
+
         Args:
             request: FastAPI request object
             call_next: Next middleware in chain
-            
+
         Returns:
             HTTP response
         """
@@ -282,11 +282,11 @@ class WebSocketAuthenticationMixin:
     @staticmethod
     async def authenticate_websocket(websocket, jwt_manager: JWTManager | None = None) -> str | None:
         """Authenticate a WebSocket connection.
-        
+
         Args:
             websocket: WebSocket connection object
             jwt_manager: JWT manager instance
-            
+
         Returns:
             User ID if authenticated, None otherwise
         """
@@ -302,7 +302,7 @@ def setup_authentication_middleware(
     excluded_patterns: set[str] | None = None
 ):
     """Setup authentication middleware for FastAPI application.
-    
+
     Args:
         app: FastAPI application instance
         protected_patterns: Custom protected URL patterns

@@ -1,0 +1,123 @@
+# Pruning strategies configuration for intelligent program pruning
+# Each strategy represents a different balance between performance and accuracy
+
+pruning_strategies:
+  conservative:
+    strategy_id: "conservative-v1"
+    name: "Conservative Pruning"
+    aggressiveness: 0.3
+    syntax_checks: true
+    pattern_checks: true
+    partial_execution: false
+    confidence_threshold: 0.8
+    max_partial_ops: 2
+    timeout_ms: 50
+    memory_limit_mb: 10
+    enable_caching: true
+    cache_size: 5000
+    description: "Minimal pruning, focus on obvious failures only"
+    
+  balanced:
+    strategy_id: "balanced-v1"
+    name: "Balanced Pruning"
+    aggressiveness: 0.5
+    syntax_checks: true
+    pattern_checks: true
+    partial_execution: true
+    confidence_threshold: 0.6
+    max_partial_ops: 3
+    timeout_ms: 100
+    memory_limit_mb: 10
+    enable_caching: true
+    cache_size: 10000
+    description: "Balance between performance and accuracy"
+    
+  aggressive:
+    strategy_id: "aggressive-v1"
+    name: "Aggressive Pruning"
+    aggressiveness: 0.8
+    syntax_checks: true
+    pattern_checks: true
+    partial_execution: true
+    confidence_threshold: 0.4
+    max_partial_ops: 5
+    timeout_ms: 150
+    memory_limit_mb: 10
+    enable_caching: true
+    cache_size: 15000
+    description: "Maximum pruning for performance"
+    
+  experimental:
+    strategy_id: "experimental-v1"
+    name: "Experimental Adaptive Pruning"
+    aggressiveness: 0.6  # Base value, adapts based on queue length
+    syntax_checks: true
+    pattern_checks: true
+    partial_execution: true
+    confidence_threshold: 0.5
+    max_partial_ops: 4
+    timeout_ms: 120
+    memory_limit_mb: 15
+    enable_caching: true
+    cache_size: 20000
+    description: "Adaptive pruning that adjusts based on evaluation queue"
+    adaptive_settings:
+      min_aggressiveness: 0.3
+      max_aggressiveness: 0.9
+      queue_threshold_low: 100  # Below this, use min aggressiveness
+      queue_threshold_high: 1000  # Above this, use max aggressiveness
+      adaptation_rate: 0.1  # How quickly to adapt
+
+# A/B testing configuration
+ab_test_config:
+  enabled: true
+  strategies: ["conservative-v1", "balanced-v1", "aggressive-v1"]
+  allocation:
+    conservative-v1: 0.33
+    balanced-v1: 0.34
+    aggressive-v1: 0.33
+  metrics:
+    - pruning_rate
+    - false_negative_rate
+    - time_saved_ms
+    - accuracy_impact
+    - memory_usage
+  min_samples_per_strategy: 1000
+  confidence_level: 0.95
+  statistical_test: "chi_squared"  # For comparing discrete outcomes
+  
+# Performance targets (for validation)
+performance_targets:
+  time_savings_percent: 40  # AC #4: Save 40% of evaluation time
+  false_negative_rate_max: 0.05  # AC #6: <5% false negative rate
+  min_precision: 0.9  # 90% of pruned programs should actually be bad
+  max_pruning_overhead_ms: 5  # Pruning should be fast
+  
+# Bypass conditions
+critical_program_bypass:
+  # Conditions under which pruning should be bypassed
+  conditions:
+    - name: "high_priority_task"
+      description: "Skip pruning for high-priority tasks"
+      check: "task.priority == 'HIGH'"
+    - name: "small_program"
+      description: "Don't prune very small programs"
+      check: "len(program.operations) < 3"
+    - name: "validation_mode"
+      description: "Skip pruning in validation mode"
+      check: "config.validation_mode == True"
+      
+# Platform-specific optimizations
+platform_settings:
+  kaggle:
+    default_strategy: "balanced-v1"
+    max_concurrent_pruning: 4  # 4 CPU cores available
+    memory_pressure_threshold: 0.8  # Switch to aggressive if >80% memory used
+  colab:
+    default_strategy: "conservative-v1"
+    max_concurrent_pruning: 2
+    memory_pressure_threshold: 0.7
+  paperspace:
+    default_strategy: "aggressive-v1"
+    max_concurrent_pruning: 8
+    memory_pressure_threshold: 0.9

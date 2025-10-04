@@ -14,7 +14,15 @@ from typing import Any
 import numpy as np
 import structlog
 
-from src.domain.models import ARCTask
+from src.domain.dsl.base import DSLProgram
+from src.domain.dsl.base import Operation as DSLOperation
+from src.domain.dsl.types import Grid
+from src.domain.models import (
+    ARCTask,
+    PruningDecision,
+    PruningMetrics,
+    PruningStrategy,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -86,9 +94,27 @@ class EvaluationResult:
 class EvaluationService:
     """Service for evaluating model predictions against ground truth with comprehensive error handling."""
 
-    def __init__(self):
-        """Initialize the evaluation service."""
+    def __init__(
+        self,
+        enable_gpu_evaluation: bool = True,
+        enable_pruning: bool = True,
+        default_pruning_strategy: PruningStrategy | None = None,
+    ):
+        """Initialize the evaluation service.
+
+        Args:
+            enable_gpu_evaluation: Whether to enable GPU-accelerated batch evaluation
+            enable_pruning: Whether to enable intelligent program pruning
+            default_pruning_strategy: Default pruning strategy to use
+        """
         self.logger = structlog.get_logger(__name__).bind(service="evaluation")
+        self.enable_gpu_evaluation = enable_gpu_evaluation
+        self._gpu_evaluator = None
+
+        # Pruning configuration
+        self.enable_pruning = enable_pruning
+        self.default_pruning_strategy = default_pruning_strategy
+        self._program_pruner = None
 
         # Performance tracking
         self.evaluation_stats = {
@@ -99,6 +125,11 @@ class EvaluationService:
             "format_errors": 0,
             "processing_errors": 0,
             "total_processing_time_ms": 0.0,
+            "gpu_evaluations": 0,
+            "cpu_evaluations": 0,
+            "pruning_evaluations": 0,
+            "programs_pruned": 0,
+            "pruning_time_saved_ms": 0.0,
         }
 
     def calculate_pixel_accuracy(
@@ -382,6 +413,7 @@ class EvaluationService:
                     strategy_used=strategy,
                 )
                 results.append(result)
+                self.evaluation_stats["cpu_evaluations"] += 1
             except Exception as e:
                 self.logger.error(
                     "batch_evaluation_error",
@@ -409,6 +441,244 @@ class EvaluationService:
         )
 
         return results
+
+    async def batch_evaluate_programs(
+        self,
+        programs: list[list["DSLOperation"]],
+        test_inputs: list[Grid],
+        device: str = "auto"
+    ) -> list[EvaluationResult]:
+        """
+        GPU-accelerated batch evaluation of DSL programs.
+
+        This method extends the evaluation service with GPU acceleration capabilities
+        for evaluating multiple DSL programs in parallel.
+
+        Args:
+            programs: List of DSL programs (lists of operations)
+            test_inputs: List of input grids
+            device: Device preference ("cuda", "cpu", or "auto")
+
+        Returns:
+            List of evaluation results
+        """
+        if not self.enable_gpu_evaluation:
+            # Fallback to sequential evaluation
+            self.logger.info("gpu_evaluation_disabled_using_sequential")
+            # Would need to implement sequential DSL evaluation
+            raise NotImplementedError("Sequential DSL evaluation not implemented")
+
+        # Lazy import to avoid circular dependencies
+        if self._gpu_evaluator is None:
+            from src.adapters.strategies.gpu_batch_evaluator import (
+                BatchEvaluationRequest,
+                GPUBatchEvaluator,
+            )
+            self._gpu_evaluator = GPUBatchEvaluator(
+                device=device,
+                max_batch_size=100,
+                memory_limit_mb=8000
+            )
+
+        # Create batch request
+        from src.adapters.strategies.gpu_batch_evaluator import BatchEvaluationRequest
+        request = BatchEvaluationRequest(
+            programs=programs,
+            input_grids=test_inputs,
+            device=device,
+            batch_size=100,
+            timeout_per_batch=5.0
+        )
+
+        # Execute batch evaluation
+        batch_result = self._gpu_evaluator.batch_evaluate(request)
+
+        # Update stats
+        self.evaluation_stats["gpu_evaluations"] += len(programs)
+
+        # Convert to evaluation results
+        # Note: This would need proper task context in real implementation
+        results = []
+        for i, (output, success, exec_time) in enumerate(
+            zip(batch_result.output_grids, batch_result.success_mask, batch_result.execution_times, strict=False)
+        ):
+            # Create dummy result for now
+            result = EvaluationResult(
+                task_id=f"batch_{i}",
+                strategy_used="gpu_batch",
+                attempts=[],
+                metadata={
+                    "success": bool(success),
+                    "execution_time_ms": exec_time,
+                    "device": batch_result.device_used,
+                    "output_grid": output
+                }
+            )
+            results.append(result)
+
+        self.logger.info(
+            "gpu_batch_evaluation_complete",
+            num_programs=len(programs),
+            device_used=batch_result.device_used,
+            success_rate=batch_result.batch_stats["success_rate"],
+            total_time_ms=batch_result.batch_stats["total_time_ms"]
+        )
+
+        return results
+
+    async def evaluate_with_pruning(
+        self,
+        programs: list[DSLProgram],
+        test_inputs: list[Grid],
+        pruning_strategy: PruningStrategy | None = None,
+    ) -> tuple[list[EvaluationResult], PruningMetrics]:
+        """
+        Evaluate programs with intelligent pruning.
+
+        Args:
+            programs: List of DSL programs to evaluate
+            test_inputs: Input grids for evaluation
+            pruning_strategy: Pruning strategy to use (None uses default)
+
+        Returns:
+            Tuple of (evaluation results, pruning metrics)
+        """
+        if not self.enable_pruning:
+            self.logger.info("pruning_disabled_using_full_evaluation")
+            # Fall back to regular batch evaluation
+            results = await self.batch_evaluate_programs(
+                [p.operations for p in programs], test_inputs
+            )
+            # Create empty pruning metrics
+            empty_metrics = PruningMetrics(
+                strategy_id="none",
+                total_programs=len(programs),
+                programs_pruned=0,
+                pruning_rate=0.0,
+                false_negatives=0,
+                false_negative_rate=0.0,
+                avg_pruning_time_ms=0.0,
+                time_saved_ms=0.0,
+                timestamp=datetime.now(),
+            )
+            return results, empty_metrics
+
+        # Use provided strategy or default
+        strategy = pruning_strategy or self.default_pruning_strategy
+        if not strategy:
+            raise ValueError("No pruning strategy provided and no default set")
+
+        # Lazy import to avoid circular dependencies
+        if self._program_pruner is None:
+            from src.adapters.strategies.program_pruner import ProgramPruner
+            self._program_pruner = ProgramPruner(strategy)
+
+        # Update pruner strategy if different
+        if self._program_pruner.strategy.strategy_id != strategy.strategy_id:
+            self._program_pruner = ProgramPruner(strategy)
+
+        # Pre-filter programs
+        start_time = time.perf_counter()
+        pruning_results = await self._program_pruner.batch_prune(programs, test_inputs)
+        pruning_time = (time.perf_counter() - start_time) * 1000
+
+        # Separate accepted/rejected programs
+        accepted_programs = []
+        accepted_indices = []
+        for i, (prog, result) in enumerate(zip(programs, pruning_results, strict=False)):
+            if result.decision == PruningDecision.ACCEPT:
+                accepted_programs.append(prog)
+                accepted_indices.append(i)
+
+        # Track metrics
+        num_pruned = len(programs) - len(accepted_programs)
+        pruning_metrics = PruningMetrics(
+            strategy_id=strategy.strategy_id,
+            total_programs=len(programs),
+            programs_pruned=num_pruned,
+            pruning_rate=num_pruned / len(programs) if programs else 0.0,
+            false_negatives=0,  # Updated during validation
+            false_negative_rate=0.0,
+            avg_pruning_time_ms=pruning_time / len(programs) if programs else 0.0,
+            time_saved_ms=0.0,  # Calculated after evaluation
+            timestamp=datetime.now(),
+        )
+
+        # Evaluate accepted programs
+        if accepted_programs:
+            if self.enable_gpu_evaluation and len(accepted_programs) > 10:
+                eval_results = await self.batch_evaluate_programs(
+                    [p.operations for p in accepted_programs], test_inputs
+                )
+            else:
+                # Sequential evaluation for small batches
+                eval_results = []
+                for prog in accepted_programs:
+                    # Note: This would need proper task context
+                    result = EvaluationResult(
+                        task_id=f"pruned_{prog.metadata.get('id', 'unknown') if prog.metadata else 'unknown'}",
+                        strategy_used="pruned_evaluation",
+                        attempts=[],
+                        metadata={"pruned": False},
+                    )
+                    eval_results.append(result)
+
+            # Map results back to original indices
+            results = []
+            eval_idx = 0
+            for i in range(len(programs)):
+                if i in accepted_indices:
+                    results.append(eval_results[eval_idx])
+                    eval_idx += 1
+                else:
+                    # Create result for pruned program
+                    result = EvaluationResult(
+                        task_id=f"pruned_{i}",
+                        strategy_used="pruned",
+                        attempts=[],
+                        metadata={
+                            "pruned": True,
+                            "pruning_decision": pruning_results[i].decision.value,
+                            "pruning_reason": pruning_results[i].rejection_reason,
+                        },
+                    )
+                    results.append(result)
+        else:
+            # All programs were pruned
+            results = []
+            for i, result in enumerate(pruning_results):
+                eval_result = EvaluationResult(
+                    task_id=f"pruned_{i}",
+                    strategy_used="pruned",
+                    attempts=[],
+                    metadata={
+                        "pruned": True,
+                        "pruning_decision": result.decision.value,
+                        "pruning_reason": result.rejection_reason,
+                    },
+                )
+                results.append(eval_result)
+
+        # Calculate time saved
+        full_eval_time = len(programs) * 50  # Assume 50ms per full evaluation
+        actual_eval_time = sum(r.total_processing_time_ms for r in results if r.attempts)
+        pruning_metrics.time_saved_ms = full_eval_time - (pruning_time + actual_eval_time)
+
+        # Update stats
+        self.evaluation_stats["total_evaluations"] += len(programs)
+        self.evaluation_stats["pruning_evaluations"] += len(programs)
+        self.evaluation_stats["programs_pruned"] += num_pruned
+        self.evaluation_stats["pruning_time_saved_ms"] += pruning_metrics.time_saved_ms
+
+        self.logger.info(
+            "pruning_evaluation_complete",
+            total_programs=len(programs),
+            programs_pruned=num_pruned,
+            pruning_rate=pruning_metrics.pruning_rate,
+            time_saved_ms=pruning_metrics.time_saved_ms,
+        )
+
+        return results, pruning_metrics
 
     def get_evaluation_summary(self, results: list[EvaluationResult]) -> dict[str, Any]:
         """Generate summary statistics from evaluation results.

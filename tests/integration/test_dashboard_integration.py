@@ -19,7 +19,7 @@ from src.adapters.api.routes.evaluation import (
     router,
     task_repository,
 )
-from src.domain.models import ARCTask, Example
+from src.domain.models import ARCTask
 
 
 @pytest.fixture
@@ -213,7 +213,7 @@ class TestRealtimeUpdates:
             task_id="test_task_123",
             task_source="test",
             train_examples=[
-                Example(input_grid=[[0, 1], [1, 0]], output_grid=[[1, 0], [0, 1]])
+                {"input": [[0, 1], [1, 0]], "output": [[1, 0], [0, 1]]}
             ],
             test_input=[[0, 0], [1, 1]],
             test_output=[[1, 1], [0, 0]]

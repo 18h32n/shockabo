@@ -48,6 +48,24 @@ class TrainingMetrics:
 
 
 @dataclass
+class EarlyStoppingConfig:
+    """Configuration for early stopping mechanism."""
+    patience: int = 5
+    min_delta: float = 0.01
+    monitor_metric: str = "validation_accuracy"
+    mode: str = "max"  # "max" for accuracy, "min" for loss
+    restore_best_weights: bool = True
+    baseline: float | None = None
+    verbose: bool = True
+    auto_save_enabled: bool = True
+    auto_save_interval_minutes: int = 10
+    auto_save_on_improvement: bool = True
+    auto_resume_enabled: bool = True
+    resume_from_best: bool = True
+    resume_threshold_hours: float = 0.5
+
+
+@dataclass
 class TrainingConfig:
     """Configuration for training orchestration."""
     learning_rate: float = 1e-4
@@ -61,10 +79,17 @@ class TrainingConfig:
     validation_frequency: int = 50  # Validate every N steps
     checkpoint_frequency: int = 100  # Save checkpoint every N steps
     max_training_time: int = 7200  # 2 hours in seconds
-    target_accuracy: float = 0.4  # 40% target accuracy
+    target_accuracy: float = 0.95  # 95% target accuracy
     memory_limit_mb: float = 10240  # 10GB limit
     mixed_precision: bool = True
     gradient_checkpointing: bool = True
+    early_stopping_config: EarlyStoppingConfig | None = None
+    early_stopping: EarlyStoppingConfig | None = None  # Alias for backward compatibility
+
+    def __post_init__(self):
+        """Handle backward compatibility for early_stopping parameter."""
+        if self.early_stopping is not None and self.early_stopping_config is None:
+            self.early_stopping_config = self.early_stopping
 
 
 class ARCTaskDataset(Dataset):
@@ -131,11 +156,13 @@ class TrainingOrchestrator:
         self,
         model_service: TTTModelService,
         config: TrainingConfig | None = None,
+        checkpoint_repository: Any | None = None,  # For backward compatibility
     ):
         """Initialize training orchestrator."""
         self.model_service = model_service
         self.config = config or TrainingConfig()
         self.device = model_service.device
+        self.checkpoint_repository = checkpoint_repository
 
         # Initialize adaptive batch sizer
         self.batch_sizer = AdaptiveBatchSizer(
@@ -360,13 +387,106 @@ class TrainingOrchestrator:
 
         return False
 
+    def check_early_stopping(self, metrics: dict[str, Any]) -> tuple[bool, str]:
+        """
+        Check if training should stop early based on provided metrics.
+
+        Args:
+            metrics: Dictionary containing training metrics
+
+        Returns:
+            Tuple of (should_stop, reason)
+        """
+        # Initialize start_time if not set (for testing)
+        if self.start_time is None:
+            self.start_time = time.time()
+
+        # Use the validation accuracy from metrics
+        current_accuracy = metrics.get("validation_accuracy", 0.0)
+
+        # Check early stopping conditions individually for clearer logic
+
+        # Check time limit
+        if hasattr(self, 'start_time') and self.start_time is not None:
+            elapsed_time = time.time() - self.start_time
+            if elapsed_time > self.config.max_training_time:
+                return True, "Time limit exceeded"
+
+        # Check memory limit
+        if hasattr(self.model_service, '_get_memory_usage'):
+            memory_mb = self.model_service._get_memory_usage() * 1024
+            if memory_mb > self.config.memory_limit_mb:
+                return True, "Memory limit exceeded"
+
+        # Check target accuracy achieved
+        if current_accuracy >= self.config.target_accuracy:
+            return True, "Target accuracy achieved"
+
+        # Check early stopping patience and handle checkpoint saving
+        if current_accuracy > self.best_accuracy + self.config.early_stopping_threshold:
+            self.best_accuracy = current_accuracy
+            self.patience_counter = 0
+
+            # Trigger auto-save on improvement if enabled
+            if (self.config.early_stopping_config and
+                self.config.early_stopping_config.auto_save_on_improvement and
+                self.checkpoint_repository):
+                self._save_checkpoint_on_improvement(metrics)
+        else:
+            self.patience_counter += 1
+            if self.patience_counter >= self.config.early_stopping_patience:
+                return True, "Patience exceeded"
+
+        return False, ""
+
+    def _save_checkpoint_on_improvement(self, metrics: dict[str, Any]) -> None:
+        """Save checkpoint when improvement is detected."""
+        try:
+            if hasattr(self, 'current_task_id') and self.current_task_id:
+                # Prepare model state
+                model_state = self.model.state_dict() if self.model else {}
+
+                # Prepare training metrics
+                training_metrics = {
+                    "step": metrics.get("step", 0),
+                    "epoch": metrics.get("epoch", 0),
+                    "validation_accuracy": metrics.get("validation_accuracy", 0.0),
+                    "loss": metrics.get("loss", 0.0),
+                    "learning_rate": metrics.get("learning_rate", 0.0),
+                    "memory_mb": metrics.get("memory_mb", 0.0),
+                }
+
+                # Prepare LoRA config
+                lora_config = {}
+                if hasattr(self.lora_adapter, 'get_adapter_state'):
+                    lora_config = self.lora_adapter.get_adapter_state()
+                elif self.lora_adapter:
+                    lora_config = {"adapter": "present"}
+
+                # Generate checkpoint ID
+                import uuid
+                checkpoint_id = f"improvement_{uuid.uuid4().hex[:8]}"
+
+                # Save through checkpoint repository
+                self.checkpoint_repository.save_checkpoint(
+                    checkpoint_id=checkpoint_id,
+                    task_id=self.current_task_id,
+                    model_state=model_state,
+                    training_metrics=training_metrics,
+                    lora_config=lora_config,
+                    tags=["auto_save", "improvement"]
+                )
+                logger.info(f"Saved checkpoint {checkpoint_id} on improvement for task {self.current_task_id}")
+        except Exception as e:
+            logger.error(f"Failed to save checkpoint on improvement: {str(e)}")
+
     def train(self, task: ARCTask) -> dict[str, Any]:
         """
         Execute complete training pipeline.
-        
+
         Args:
             task: ARC task to train on
-            
+
         Returns:
             Training results and metrics
         """
@@ -385,7 +505,7 @@ class TrainingOrchestrator:
             memory_status = self.model_service.memory_manager.get_memory_usage()
             logger.info(f"Epoch {epoch} - Memory usage: {memory_status['usage_percentage']:.1f}%")
 
-            for batch_idx, batch in enumerate(self.train_dataloader):
+            for _batch_idx, batch in enumerate(self.train_dataloader):
                 # Training step
                 metrics = self.train_step(batch, global_step, epoch)
                 epoch_loss += metrics.loss

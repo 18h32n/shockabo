@@ -496,7 +496,7 @@ performance_monitoring_middleware = None
 
 def setup_middleware(app, enable_detailed_logging: bool = False):
     """Setup all middleware components for the FastAPI application.
-    
+
     Args:
         app: FastAPI application instance
         enable_detailed_logging: Whether to enable detailed request/response logging

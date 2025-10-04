@@ -2,14 +2,180 @@
 
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path, PurePath, PurePosixPath
 from typing import Any
 
-import psutil
-import yaml
-from dotenv import load_dotenv
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    psutil = None
+    HAS_PSUTIL = False
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    yaml = None
+    HAS_YAML = False
+try:
+    from dotenv import load_dotenv
+    HAS_DOTENV = True
+except ImportError:
+    def load_dotenv():
+        pass
+    HAS_DOTENV = False
+
+
+# Genetic Algorithm Configuration Classes
+@dataclass
+class PopulationConfig:
+    """Population management configuration."""
+    size: int = 1000
+    initialization: dict[str, Any] = field(default_factory=lambda: {
+        "method": "hybrid",
+        "llm_seed_ratio": 0.2,
+        "template_ratio": 0.5
+    })
+    elite_size: int = 50
+
+
+@dataclass
+class CrossoverConfig:
+    """Crossover operator configuration."""
+    rate: float = 0.7
+    methods: dict[str, float] = field(default_factory=lambda: {
+        "single_point": 0.4,
+        "uniform": 0.3,
+        "subtree": 0.3
+    })
+
+
+@dataclass
+class MutationConfig:
+    """Mutation operator configuration."""
+    base_rate: float = 0.1
+    adaptive: bool = True
+    max_rate: float = 0.3
+    methods: dict[str, float] = field(default_factory=lambda: {
+        "operation_replace": 0.3,
+        "parameter_mutate": 0.3,
+        "insert_delete": 0.2,
+        "reorder": 0.2
+    })
+    llm_guided: dict[str, Any] = field(default_factory=lambda: {
+        "enabled": True,
+        "trigger": "stagnation",
+        "model_tier": 1
+    })
+
+
+@dataclass
+class GeneticOperatorsConfig:
+    """Genetic operators configuration."""
+    crossover: CrossoverConfig = field(default_factory=CrossoverConfig)
+    mutation: MutationConfig = field(default_factory=MutationConfig)
+
+
+@dataclass
+class FitnessConfig:
+    """Fitness evaluation configuration."""
+    metrics: dict[str, float] = field(default_factory=lambda: {
+        "grid_similarity": 0.7,
+        "program_length": 0.2,
+        "execution_time": 0.1
+    })
+    cache_enabled: bool = True
+    early_termination: dict[str, float] = field(default_factory=lambda: {
+        "threshold": 0.95
+    })
+
+
+@dataclass
+class DiversityConfig:
+    """Diversity preservation configuration."""
+    method: str = "fitness_sharing"  # or "speciation", "novelty", "crowding"
+    niche_radius: float = 0.15
+    species_threshold: float = 0.3
+
+
+@dataclass
+class ParallelizationConfig:
+    """Parallel processing configuration."""
+    backend: str = "multiprocessing"  # or "asyncio", "ray"
+    workers: int = 4
+    batch_size: int = 250
+    gpu_acceleration: bool = True
+    gpu_batch_size: int = 100
+
+
+@dataclass
+class ConvergenceConfig:
+    """Convergence detection configuration."""
+    max_generations: int = 200
+    stagnation_patience: int = 20
+    min_fitness_improvement: float = 0.001
+    early_stop: bool = True
+
+
+@dataclass
+class TranspilerSandboxConfig:
+    """Configuration for transpiler and sandbox execution thresholds."""
+    # Operation timing thresholds
+    slow_operation_threshold_ms: float = 50.0  # milliseconds for marking operations as slow
+
+    # Grid size limits
+    max_grid_width: int = 30
+    max_grid_height: int = 30
+
+    # Execution limits
+    timeout_seconds: float = 1.0  # Default timeout for program execution
+    memory_limit_mb: int = 100  # Default memory limit in MB
+
+    # Additional safety thresholds
+    max_operation_memory_overhead_factor: float = 0.5  # 50% overhead per operation
+
+    # Profiling configuration
+    cpu_profiling_enabled: bool = False  # Enable CPU profiling
+    memory_tracking_enabled: bool = False  # Enable memory allocation tracking
+    resource_monitoring_enabled: bool = True  # Basic resource monitoring (low overhead)
+    export_profiling_data: bool = False  # Export detailed profiling data to files
+
+
+@dataclass
+class PerformanceConfig:
+    """Performance limits configuration."""
+    generation_timeout: int = 30  # seconds
+    memory_limit: int = 2048  # MB
+    program_timeout: int = 1  # seconds per program
+    transpiler_sandbox: TranspilerSandboxConfig = field(default_factory=TranspilerSandboxConfig)
+
+
+@dataclass
+class ReproducibilityConfig:
+    """Reproducibility and deterministic execution configuration."""
+    seed: int | None = None  # Random seed for reproducibility
+    deterministic: bool = False  # Enable fully deterministic mode
+    checkpoint_enabled: bool = True  # Enable state checkpointing
+    checkpoint_dir: str = "evolution_checkpoints"  # Directory for checkpoints
+    config_version: str = "1.0.0"  # Configuration version for compatibility
+
+
+@dataclass
+class GeneticAlgorithmConfig:
+    """Complete genetic algorithm configuration."""
+    population: PopulationConfig = field(default_factory=PopulationConfig)
+    genetic_operators: GeneticOperatorsConfig = field(default_factory=GeneticOperatorsConfig)
+    fitness: FitnessConfig = field(default_factory=FitnessConfig)
+    diversity: DiversityConfig = field(default_factory=DiversityConfig)
+    parallelization: ParallelizationConfig = field(default_factory=ParallelizationConfig)
+    convergence: ConvergenceConfig = field(default_factory=ConvergenceConfig)
+    performance: PerformanceConfig = field(default_factory=PerformanceConfig)
+    reproducibility: ReproducibilityConfig = field(default_factory=ReproducibilityConfig)
+    platform_overrides: dict[str, dict] = field(default_factory=dict)  # Task 8.3
+    island_model: dict = field(default_factory=dict)  # Task 7.1
+    novelty_search: dict = field(default_factory=dict)  # Task 7.5
 
 
 class Platform(Enum):
@@ -127,43 +293,43 @@ class PlatformDetector:
             "gpu_memory_available_mb": 0,
             "gpu_names": [],
         }
-        
+
         try:
             import torch
             if torch.cuda.is_available():
                 gpu_info["gpu_available"] = True
                 gpu_info["gpu_count"] = torch.cuda.device_count()
-                
+
                 for i in range(torch.cuda.device_count()):
                     props = torch.cuda.get_device_properties(i)
                     gpu_info["gpu_names"].append(props.name)
-                    
+
                     # Get memory info for first GPU
                     if i == 0:
                         total_memory = props.total_memory / (1024 * 1024)  # Convert to MB
                         reserved_memory = torch.cuda.memory_reserved(i) / (1024 * 1024)
                         allocated_memory = torch.cuda.memory_allocated(i) / (1024 * 1024)
-                        
+
                         gpu_info["gpu_memory_total_mb"] = total_memory
                         gpu_info["gpu_memory_available_mb"] = total_memory - reserved_memory
                         gpu_info["gpu_memory_allocated_mb"] = allocated_memory
-                        
+
         except ImportError:
             pass
-            
+
         return gpu_info
-    
+
     @staticmethod
     def validate_8b_model_requirements() -> dict[str, Any]:
         """Validate system requirements for 8B model with QLoRA."""
         gpu_info = PlatformDetector.get_gpu_memory_info()
         platform_info = PlatformDetector.get_platform_info()
-        
+
         # Requirements for Llama-3 8B with 4-bit quantization
         min_gpu_memory_mb = 6000   # 6GB minimum with QLoRA
         recommended_gpu_memory_mb = 8000  # 8GB recommended
         optimal_gpu_memory_mb = 24000     # 24GB optimal
-        
+
         validation = {
             "platform": platform_info.platform.value,
             "gpu_available": gpu_info["gpu_available"],
@@ -175,14 +341,14 @@ class PlatformDetector:
             "memory_level": "insufficient",
             "recommendations": [],
         }
-        
+
         if gpu_info["gpu_available"] and gpu_info["gpu_memory_total_mb"] > 0:
             available_memory = gpu_info["gpu_memory_available_mb"]
-            
+
             validation["meets_minimum"] = available_memory >= min_gpu_memory_mb
             validation["meets_recommended"] = available_memory >= recommended_gpu_memory_mb
             validation["meets_optimal"] = available_memory >= optimal_gpu_memory_mb
-            
+
             if validation["meets_optimal"]:
                 validation["memory_level"] = "optimal"
                 validation["recommendations"].append("System has optimal memory for 8B model")
@@ -205,14 +371,22 @@ class PlatformDetector:
                 ])
         else:
             validation["recommendations"].append("No GPU available, CPU-only mode will be very slow")
-            
+
         return validation
-    
+
     @staticmethod
     def get_resource_limits() -> dict[str, Any]:
         """Get current platform resource limits with 8B model validation."""
         platform_info = PlatformDetector.get_platform_info()
-        memory = psutil.virtual_memory()
+        if HAS_PSUTIL:
+            memory = psutil.virtual_memory()
+        else:
+            # Fallback to dummy values
+            class DummyMemory:
+                def __init__(self):
+                    self.available = 8 * 1024**3  # 8GB
+                    self.total = 16 * 1024**3     # 16GB
+            memory = DummyMemory()
         gpu_info = PlatformDetector.get_gpu_memory_info()
         model_validation = PlatformDetector.validate_8b_model_requirements()
 
@@ -223,7 +397,7 @@ class PlatformDetector:
             "max_memory_gb": platform_info.max_memory_gb,
             "available_memory_gb": memory.available // (1024**3),
             "total_memory_gb": memory.total // (1024**3),
-            "cpu_cores": psutil.cpu_count(),
+            "cpu_cores": psutil.cpu_count() if HAS_PSUTIL else 4,
             "has_persistent_storage": platform_info.has_persistent_storage,
             "gpu_info": gpu_info,
             "model_8b_validation": model_validation,
@@ -259,13 +433,13 @@ class ConfigManager:
 
         # Load development.yaml as base
         dev_config_path = self.config_dir / "development.yaml"
-        if dev_config_path.exists():
+        if dev_config_path.exists() and HAS_YAML:
             with open(dev_config_path, encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
 
         # Load platform-specific config if it exists
         platform_config_path = self.config_dir / f"{self.platform.value}.yaml"
-        if platform_config_path.exists():
+        if platform_config_path.exists() and HAS_YAML:
             with open(platform_config_path, encoding='utf-8') as f:
                 platform_config = yaml.safe_load(f) or {}
                 # Perform a deep merge of platform-specific config
@@ -294,11 +468,14 @@ class ConfigManager:
         }
 
         # Apply memory-based adjustments for 8B model
-        available_memory = psutil.virtual_memory().available // (1024**3)
+        if HAS_PSUTIL:
+            available_memory = psutil.virtual_memory().available // (1024**3)
+        else:
+            available_memory = 8  # Default to 8GB available
         model_validation = PlatformDetector.validate_8b_model_requirements()
-        
+
         overrides["model"] = overrides.get("model", {})
-        
+
         # Configure based on GPU memory availability
         if model_validation["meets_optimal"]:
             # Optimal configuration for 24GB+ GPU
@@ -340,7 +517,7 @@ class ConfigManager:
                 "batch_size": min(self._config.get("model", {}).get("batch_size", 32), 8),
                 "max_sequence_length": min(self._config.get("model", {}).get("max_sequence_length", 2048), 1024),
             })
-        
+
         # Additional memory constraints for system RAM
         if available_memory < 4:
             overrides["model"]["batch_size"] = 1
@@ -462,3 +639,5 @@ def initialize_config(config_dir: Path | None = None) -> ConfigManager:
     global _config_manager
     _config_manager = ConfigManager(config_dir)
     return _config_manager
+
+Config = ConfigManager

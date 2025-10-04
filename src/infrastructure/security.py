@@ -49,10 +49,10 @@ class AuthorizationError(HTTPException):
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt.
-    
+
     Args:
         password: Plain text password to hash
-        
+
     Returns:
         Hashed password string
     """
@@ -67,11 +67,11 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash.
-    
+
     Args:
         plain_password: Plain text password to verify
         hashed_password: Previously hashed password
-        
+
     Returns:
         True if password is valid, False otherwise
     """
@@ -87,16 +87,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def validate_password_strength(password: str) -> dict[str, Any]:
     """Validate password meets security requirements.
-    
+
     Requirements:
     - Minimum 8 characters
     - At least one uppercase letter
-    - At least one lowercase letter  
+    - At least one lowercase letter
     - At least one number
-    
+
     Args:
         password: Password to validate
-        
+
     Returns:
         Dictionary with validation results and feedback
     """
@@ -147,14 +147,14 @@ async def get_current_user(
     jwt_manager: JWTManager = Depends(get_jwt_manager)
 ) -> str:
     """Extract and validate current user from JWT token.
-    
+
     Args:
         credentials: HTTP Bearer credentials from request
         jwt_manager: JWT manager instance
-        
+
     Returns:
         User ID from validated token
-        
+
     Raises:
         AuthenticationError: If token is invalid or expired
     """
@@ -164,10 +164,10 @@ async def get_current_user(
         return user_id
     except HTTPException as e:
         logger.warning("authentication_failed", detail=e.detail, status_code=e.status_code)
-        raise AuthenticationError(detail=e.detail)
+        raise AuthenticationError(detail=e.detail) from e
     except Exception as e:
         logger.error("authentication_error", error=str(e), exc_info=True)
-        raise AuthenticationError(detail="Authentication failed")
+        raise AuthenticationError(detail="Authentication failed") from None
 
 
 async def get_current_user_optional(
@@ -175,11 +175,11 @@ async def get_current_user_optional(
     jwt_manager: JWTManager = Depends(get_jwt_manager)
 ) -> str | None:
     """Extract current user from JWT token if provided (optional authentication).
-    
+
     Args:
         credentials: Optional HTTP Bearer credentials from request
         jwt_manager: JWT manager instance
-        
+
     Returns:
         User ID from validated token, or None if no valid token provided
     """
@@ -200,11 +200,11 @@ async def get_current_user_optional(
 
 def create_access_token(user_id: str, additional_claims: dict[str, Any] | None = None) -> str:
     """Create a JWT access token for a user.
-    
+
     Args:
         user_id: User ID to encode in token
         additional_claims: Optional additional claims to include
-        
+
     Returns:
         Encoded JWT access token
     """
@@ -214,10 +214,10 @@ def create_access_token(user_id: str, additional_claims: dict[str, Any] | None =
 
 def create_refresh_token(user_id: str) -> str:
     """Create a JWT refresh token for a user.
-    
+
     Args:
         user_id: User ID to encode in token
-        
+
     Returns:
         Encoded JWT refresh token
     """
@@ -227,13 +227,13 @@ def create_refresh_token(user_id: str) -> str:
 
 def verify_refresh_token(token: str) -> str:
     """Verify and decode a refresh token.
-    
+
     Args:
         token: Refresh token to verify
-        
+
     Returns:
         User ID from verified token
-        
+
     Raises:
         AuthenticationError: If token is invalid or expired
     """
@@ -249,10 +249,10 @@ def verify_refresh_token(token: str) -> str:
         return user_id
     except HTTPException as e:
         logger.warning("refresh_token_verification_failed", detail=e.detail)
-        raise AuthenticationError(detail=e.detail)
+        raise AuthenticationError(detail=e.detail) from e
     except Exception as e:
         logger.error("refresh_token_verification_error", error=str(e))
-        raise AuthenticationError(detail="Invalid refresh token")
+        raise AuthenticationError(detail="Invalid refresh token") from None
 
 
 class SecurityConfig:
@@ -281,7 +281,7 @@ class SecurityConfig:
 
 def get_security_headers() -> dict[str, str]:
     """Get security headers to add to responses.
-    
+
     Returns:
         Dictionary of security headers
     """

@@ -9,15 +9,17 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
 from src.domain.services.training_orchestrator import EarlyStoppingConfig, TrainingConfig
-from src.utils.early_stopping_utils import EarlyStoppingConfigManager, validate_early_stopping_config
-
+from src.utils.early_stopping_utils import (
+    EarlyStoppingConfigManager,
+    validate_early_stopping_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,30 +29,30 @@ def create_interactive_config() -> EarlyStoppingConfig:
     print("\n" + "="*60)
     print("INTERACTIVE EARLY STOPPING CONFIGURATION")
     print("="*60)
-    
+
     # Basic parameters
     print("\n1. Basic Early Stopping Parameters:")
     patience = int(input("Enter patience (number of validations without improvement) [5]: ") or "5")
     min_delta = float(input("Enter minimum improvement threshold [0.01]: ") or "0.01")
-    
+
     # Monitor metric
     print("\n2. Monitoring Configuration:")
     print("Available metrics: validation_accuracy, validation_loss, training_loss")
     monitor_metric = input("Enter metric to monitor [validation_accuracy]: ") or "validation_accuracy"
-    
+
     if "loss" in monitor_metric.lower():
         mode = "min"
         print("Using 'min' mode for loss metric")
     else:
         mode = "max"
         print("Using 'max' mode for accuracy metric")
-    
+
     # Advanced options
     print("\n3. Advanced Options:")
     restore_best = input("Restore best weights on early stopping? [y/N]: ").lower().startswith('y')
     baseline_str = input("Enter baseline value (optional, press Enter to skip): ")
     baseline = float(baseline_str) if baseline_str else None
-    
+
     # Auto-save configuration
     print("\n4. Auto-Save Configuration:")
     auto_save = input("Enable auto-save? [Y/n]: ").lower() != 'n'
@@ -60,7 +62,7 @@ def create_interactive_config() -> EarlyStoppingConfig:
     else:
         save_interval = 10
         save_on_improvement = False
-    
+
     # Auto-resume configuration
     print("\n5. Auto-Resume Configuration:")
     auto_resume = input("Enable auto-resume? [Y/n]: ").lower() != 'n'
@@ -70,7 +72,7 @@ def create_interactive_config() -> EarlyStoppingConfig:
     else:
         resume_from_best = True
         resume_threshold = 0.5
-    
+
     # Create configuration
     config = EarlyStoppingConfig(
         patience=patience,
@@ -87,19 +89,19 @@ def create_interactive_config() -> EarlyStoppingConfig:
         resume_from_best=resume_from_best,
         resume_threshold_hours=resume_threshold,
     )
-    
+
     return config
 
 
 def create_scenario_config(scenario: str) -> EarlyStoppingConfig:
     """Create configuration for predefined scenarios."""
     config_manager = EarlyStoppingConfigManager()
-    
+
     if scenario in ["conservative", "aggressive", "balanced", "memory_aware", "time_critical"]:
         config = config_manager.get_config(scenario)
         if config:
             return config
-    
+
     # Scenario-specific configurations
     if scenario == "8b_model":
         return config_manager.create_adaptive_config("8B", 45, 24)
@@ -131,15 +133,15 @@ def display_config_summary(config: EarlyStoppingConfig, name: str = "Configurati
     print(f"Min Delta: {config.min_delta}")
     print(f"Monitor: {config.monitor_metric} ({'maximize' if config.mode == 'max' else 'minimize'})")
     print(f"Restore Best Weights: {config.restore_best_weights}")
-    
+
     if config.baseline is not None:
         print(f"Baseline Threshold: {config.baseline}")
-    
+
     print(f"Auto-Save: {config.auto_save_enabled}")
     if config.auto_save_enabled:
         print(f"  - Interval: {config.auto_save_interval_minutes} minutes")
         print(f"  - On Improvement: {config.auto_save_on_improvement}")
-    
+
     print(f"Auto-Resume: {config.auto_resume_enabled}")
     if config.auto_resume_enabled:
         print(f"  - From Best: {config.resume_from_best}")
@@ -149,7 +151,7 @@ def display_config_summary(config: EarlyStoppingConfig, name: str = "Configurati
 def save_training_config(
     early_stopping_config: EarlyStoppingConfig,
     output_path: Path,
-    additional_params: Dict[str, Any] = None
+    additional_params: dict[str, Any] = None
 ) -> None:
     """Save complete training configuration with early stopping."""
     # Create complete training config
@@ -157,7 +159,7 @@ def save_training_config(
         early_stopping=early_stopping_config,
         **(additional_params or {})
     )
-    
+
     # Convert to dictionary
     config_dict = {
         "training_config": {
@@ -203,36 +205,36 @@ def save_training_config(
             "version": "1.0",
         }
     }
-    
+
     # Save configuration
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(config_dict, f, indent=2)
-    
+
     print(f"\nConfiguration saved to: {output_path}")
 
 
-def load_and_validate_config(config_path: Path) -> Dict[str, Any]:
+def load_and_validate_config(config_path: Path) -> dict[str, Any]:
     """Load and validate existing configuration."""
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    
-    with open(config_path, 'r') as f:
+
+    with open(config_path) as f:
         config_data = json.load(f)
-    
+
     # Extract early stopping config
     es_config_data = config_data.get("early_stopping", {})
     early_stopping_config = EarlyStoppingConfig(**es_config_data)
-    
+
     # Validate configuration
     warnings = validate_early_stopping_config(early_stopping_config)
     if warnings:
-        print(f"\nConfiguration warnings:")
+        print("\nConfiguration warnings:")
         for warning in warnings:
             print(f"  ⚠️  {warning}")
     else:
         print("✅ Configuration validation passed")
-    
+
     return config_data
 
 
@@ -247,7 +249,7 @@ def main():
     )
     parser.add_argument(
         "--scenario",
-        choices=["conservative", "aggressive", "balanced", "memory_aware", "time_critical", 
+        choices=["conservative", "aggressive", "balanced", "memory_aware", "time_critical",
                 "8b_model", "1b_model", "quick_test", "long_training"],
         help="Predefined scenario for scenario mode"
     )
@@ -267,73 +269,73 @@ def main():
         action="store_true",
         help="Enable verbose output"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Setup logging
     logging.basicConfig(
         level=logging.INFO if args.verbose else logging.WARNING,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
-    
+
     print("Early Stopping Configuration Tool for Story 1.5")
     print("=" * 50)
-    
+
     try:
         if args.mode == "validate":
             if not args.input:
                 print("❌ Input file required for validation mode")
                 sys.exit(1)
-            
+
             print(f"Validating configuration: {args.input}")
             config_data = load_and_validate_config(args.input)
-            
+
             # Display current config
             es_config = EarlyStoppingConfig(**config_data["early_stopping"])
             display_config_summary(es_config, "Current Configuration")
-            
+
         elif args.mode == "scenario":
             if not args.scenario:
                 print("❌ Scenario required for scenario mode")
-                print("Available scenarios:", 
+                print("Available scenarios:",
                       "conservative, aggressive, balanced, memory_aware, time_critical,")
                 print("                     8b_model, 1b_model, quick_test, long_training")
                 sys.exit(1)
-            
+
             print(f"Creating configuration for scenario: {args.scenario}")
             config = create_scenario_config(args.scenario)
             display_config_summary(config, f"Scenario: {args.scenario}")
-            
+
             # Validate and save
             warnings = validate_early_stopping_config(config)
             if warnings:
                 print(f"\nWarnings for scenario '{args.scenario}':")
                 for warning in warnings:
                     print(f"  ⚠️  {warning}")
-            
+
             save_training_config(config, args.output)
-            
+
         else:  # interactive mode
             config = create_interactive_config()
             display_config_summary(config, "Your Configuration")
-            
+
             # Validate configuration
             warnings = validate_early_stopping_config(config)
             if warnings:
                 print("\nConfiguration Warnings:")
                 for warning in warnings:
                     print(f"  ⚠️  {warning}")
-                
+
                 proceed = input("\nProceed with warnings? [y/N]: ")
                 if not proceed.lower().startswith('y'):
                     print("Configuration cancelled.")
                     sys.exit(0)
-            
+
             # Save configuration
             save_training_config(config, args.output)
-        
+
         print("\n✅ Configuration completed successfully!")
-        
+
     except KeyboardInterrupt:
         print("\n❌ Configuration cancelled by user")
         sys.exit(1)

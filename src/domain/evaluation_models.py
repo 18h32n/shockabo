@@ -256,3 +256,108 @@ class DashboardMetrics:
                 "system_health": self.system_health,
             },
         }
+
+
+@dataclass
+class PerformanceMetrics:
+    """Performance metrics for task execution and evaluation."""
+
+    # System performance metrics
+    cpu_usage_percent: float = 0.0
+    memory_usage_percent: float = 0.0
+    memory_used_mb: float = 0.0
+    memory_total_mb: float = 0.0
+    disk_usage_percent: float = 0.0
+    disk_used_mb: float = 0.0
+
+    # Task-specific metrics
+    task_id: str | None = None
+    accuracy: float = 0.0
+    total_time: float = 0.0
+    inference_time: float = 0.0
+    training_time_seconds: float = 0.0
+    programs_evaluated: int = 0
+
+    # Training and learning metrics
+    average_loss: float = 0.0
+    loss_trend: str = "unknown"
+    accuracy_trend: str = "unknown"
+    learning_rate: float = 0.0
+    convergence_score: float = 0.0
+    stability_score: float = 0.0
+
+    # Resource metrics
+    memory_peak_mb: float = 0.0
+    cpu_time_seconds: float = 0.0
+    gpu_memory_mb: float | None = None
+    network_connections: int = 0
+
+    def __post_init__(self):
+        """Validate performance metrics."""
+        if self.accuracy < 0.0 or self.accuracy > 1.0:
+            raise ValueError(f"Accuracy must be between 0 and 1, got {self.accuracy}")
+        if self.total_time < 0.0:
+            raise ValueError(f"Total time must be non-negative, got {self.total_time}")
+        if self.programs_evaluated < 0:
+            raise ValueError(f"Programs evaluated must be non-negative, got {self.programs_evaluated}")
+
+
+@dataclass
+class EvaluationResult:
+    """Result of evaluating a strategy on an ARC task."""
+
+    task_id: str
+    attempts: list[dict[str, Any]]
+    strategy_used: str | None = None
+    success: bool = False
+    solution: list[list[int]] | None = None
+    confidence: float = 0.0
+    programs: list[dict[str, Any]] = field(default_factory=list)
+    performance: PerformanceMetrics | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.now)
+    error_message: str | None = None
+
+    # Alternative field names for backwards compatibility
+    strategy: str | None = None
+
+    def __post_init__(self):
+        """Validate evaluation result and handle backwards compatibility."""
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(f"Confidence score must be between 0 and 1, got {self.confidence}")
+
+        # Handle backwards compatibility for strategy field
+        if self.strategy is not None and self.strategy_used is None:
+            self.strategy_used = self.strategy
+        elif self.strategy_used is not None and self.strategy is None:
+            self.strategy = self.strategy_used
+        elif self.strategy is None and self.strategy_used is None:
+            raise ValueError("Either 'strategy' or 'strategy_used' must be provided")
+
+        if not self.task_id:
+            raise ValueError("Task ID cannot be empty")
+
+    @property
+    def best_confidence(self) -> float:
+        """Get the best confidence score from attempts or overall confidence."""
+        if self.attempts:
+            return max((attempt.get("confidence", 0.0) for attempt in self.attempts), default=0.0)
+        return self.confidence
+
+    @property
+    def total_programs(self) -> int:
+        """Get total number of programs evaluated."""
+        return len(self.programs)
+
+    def get_best_programs(self, count: int = 1) -> list[dict[str, Any]]:
+        """Get the best performing programs."""
+        if not self.programs:
+            return []
+
+        # Sort by fitness/confidence descending
+        sorted_programs = sorted(
+            self.programs,
+            key=lambda p: p.get("fitness", p.get("confidence", 0.0)),
+            reverse=True
+        )
+        return sorted_programs[:count]

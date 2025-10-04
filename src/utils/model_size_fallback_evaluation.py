@@ -62,7 +62,7 @@ class ModelSizeFallbackEvaluator:
     ):
         """
         Initialize fallback evaluator.
-        
+
         Args:
             memory_limit_mb: GPU memory limit
             time_limit_seconds: Inference time limit
@@ -207,7 +207,7 @@ Explain your reasoning and provide the answer.""",
             ARCTaskSample(
                 task_id="complex_reasoning",
                 prompt="""Analyze this complex ARC pattern:
-Training: 
+Training:
 Input: [[0,1,0],[1,2,1],[0,1,0]] -> Output: [[2,0,2],[0,1,0],[2,0,2]]
 Input: [[1,0,1],[0,3,0],[1,0,1]] -> Output: [[3,1,3],[1,0,1],[3,1,3]]
 
@@ -343,7 +343,7 @@ Provide detailed reasoning and the final answer.""",
                         inputs = {k: v.cuda() for k, v in inputs.items()}
 
                     with torch.no_grad():
-                        outputs = model.generate(
+                        model.generate(
                             **inputs,
                             max_new_tokens=task.expected_output_length,
                             do_sample=False,
@@ -722,7 +722,7 @@ def main():
     }
 
     # Evaluate test model
-    result = evaluator.evaluate_model(test_model, test_config)
+    evaluator.evaluate_model(test_model, test_config)
 
     # Generate report
     report_path = "docs/qa/assessments/model_size_fallback_evaluation_results.json"

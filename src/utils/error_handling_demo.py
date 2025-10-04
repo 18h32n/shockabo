@@ -5,13 +5,10 @@ to ensure robust error management across the ARC Prize evaluation system.
 """
 
 import asyncio
-import json
 import logging
 import random
 import time
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
 
 import structlog
 
@@ -30,10 +27,8 @@ from .error_handling import (
     create_error_response,
 )
 from .error_recovery import (
-    CircuitBreaker,
     CircuitBreakerConfig,
     FallbackStrategy,
-    HealthMonitor,
     RetryStrategy,
     get_circuit_breaker,
     get_health_monitor,
@@ -49,9 +44,9 @@ class ErrorHandlingDemo:
 
     def __init__(self):
         self.error_logger = ErrorLogger()
-        self.demo_results: Dict[str, Dict] = {}
+        self.demo_results: dict[str, dict] = {}
 
-    async def run_all_demos(self) -> Dict[str, Dict]:
+    async def run_all_demos(self) -> dict[str, dict]:
         """Run all error handling demonstrations."""
         logger.info("starting_error_handling_demos")
 
@@ -105,7 +100,7 @@ class ErrorHandlingDemo:
         logger.info("all_demos_completed", total_demos=len(demos))
         return self.demo_results
 
-    async def demo_basic_exceptions(self) -> Dict:
+    async def demo_basic_exceptions(self) -> dict:
         """Demonstrate basic exception handling patterns."""
         results = {"tests": []}
 
@@ -171,7 +166,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_custom_exceptions(self) -> Dict:
+    async def demo_custom_exceptions(self) -> dict:
         """Demonstrate custom ARC exception types."""
         results = {"exception_types": []}
 
@@ -220,7 +215,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_error_logging(self) -> Dict:
+    async def demo_error_logging(self) -> dict:
         """Demonstrate structured error logging."""
         results = {"logging_tests": []}
 
@@ -266,7 +261,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_circuit_breaker(self) -> Dict:
+    async def demo_circuit_breaker(self) -> dict:
         """Demonstrate circuit breaker functionality."""
         results = {"circuit_breaker_tests": []}
 
@@ -307,7 +302,7 @@ class ErrorHandlingDemo:
             raise Exception("Simulated service failure")
 
         failure_count = 0
-        for i in range(5):  # Try to trip the circuit breaker
+        for _i in range(5):  # Try to trip the circuit breaker
             try:
                 await circuit_breaker.call(failing_operation)
             except Exception:
@@ -345,7 +340,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_retry_mechanisms(self) -> Dict:
+    async def demo_retry_mechanisms(self) -> dict:
         """Demonstrate retry strategies."""
         results = {"retry_tests": []}
 
@@ -412,7 +407,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_fallback_strategies(self) -> Dict:
+    async def demo_fallback_strategies(self) -> dict:
         """Demonstrate fallback mechanisms."""
         results = {"fallback_tests": []}
 
@@ -464,7 +459,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_health_monitoring(self) -> Dict:
+    async def demo_health_monitoring(self) -> dict:
         """Demonstrate health monitoring."""
         results = {"health_tests": []}
 
@@ -545,7 +540,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_api_error_responses(self) -> Dict:
+    async def demo_api_error_responses(self) -> dict:
         """Demonstrate API error response formatting."""
         results = {"api_response_tests": []}
 
@@ -598,7 +593,7 @@ class ErrorHandlingDemo:
 
         return results
 
-    async def demo_recovery_patterns(self) -> Dict:
+    async def demo_recovery_patterns(self) -> dict:
         """Demonstrate advanced recovery patterns."""
         results = {"recovery_tests": []}
 
@@ -622,13 +617,13 @@ class ErrorHandlingDemo:
             try:
                 attempts += 1
                 # Try primary service with circuit breaker and retry
-                result = await retry_strategy.execute(
+                await retry_strategy.execute(
                     lambda: circuit_breaker.call(unreliable_service)
                 )
                 successes += 1
             except Exception:
                 # Use fallback
-                result = await fallback_response()
+                await fallback_response()
                 successes += 1
 
         results["recovery_tests"].append(
@@ -647,9 +642,9 @@ class ErrorHandlingDemo:
         report = []
         report.append("# ARC Prize Error Handling System Demo Report")
         report.append(f"Generated: {datetime.now().isoformat()}")
-        report.append("
+        report.append("""
 ## Demo Results Summary
-")
+""")
 
         total_demos = len(self.demo_results)
         successful_demos = sum(
@@ -662,9 +657,9 @@ class ErrorHandlingDemo:
 
         # Detailed results
         for demo_name, result in self.demo_results.items():
-            report.append(f"
+            report.append(f"""
 ### {demo_name.replace('_', ' ').title()}
-")
+""")
             report.append(f"- Status: {result['status']}")
             report.append(f"- Execution time: {result['execution_time']*1000:.2f}ms")
 
@@ -688,9 +683,9 @@ class ErrorHandlingDemo:
             elif result["status"] == "error":
                 report.append(f"- Error: {result['error']}")
 
-        report.append("
+        report.append("""
 ## Key Features Demonstrated
-")
+""")
         report.append("- ✅ Custom exception hierarchy with error codes")
         report.append("- ✅ Structured error logging with context")
         report.append("- ✅ Circuit breaker patterns for service resilience")
@@ -700,9 +695,9 @@ class ErrorHandlingDemo:
         report.append("- ✅ API error response standardization")
         report.append("- ✅ Combined recovery patterns")
 
-        report.append("
+        report.append("""
 ## Usage Recommendations
-")
+""")
         report.append(
             "1. Use ARCBaseException and its subclasses for all domain-specific errors"
         )
@@ -714,8 +709,7 @@ class ErrorHandlingDemo:
         report.append("5. Set up health monitoring for critical system components")
         report.append("6. Let middleware handle error response formatting")
 
-        return "
-".join(report)
+        return "\n".join(report)
 
 
 async def main():
@@ -726,7 +720,7 @@ async def main():
     print(report)
 
 
-def integration_checklist() -> Dict[str, str]:
+def integration_checklist() -> dict[str, str]:
     """Checklist for integrating error handling into existing modules."""
     return {
         "1_import_exceptions": "from src.utils.error_handling import ARCBaseException, TaskNotFoundException, etc.",
@@ -749,8 +743,7 @@ if __name__ == "__main__":
     for step, description in checklist.items():
         print(f"{step}: {description}")
 
-    print("
-" + "=" * 60)
+    print("\n" + "=" * 60)
     print("Use setup_error_handling_system(app) to configure your FastAPI app")
     print("Run error_handling_demo.py to see the system in action")
     print("Check the health endpoint at /health for system status")

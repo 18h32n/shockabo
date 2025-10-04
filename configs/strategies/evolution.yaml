@@ -1,0 +1,219 @@
+# Genetic Algorithm Configuration for ARC Prize 2025
+# This configuration controls the evolution engine behavior
+
+# Pruning configuration for evolution
+enable_pruning: true  # Enable intelligent program pruning
+pruning_strategy: "balanced"  # Options: conservative, balanced, aggressive
+
+evolution:
+  population:
+    size: 1000
+    initialization:
+      method: "hybrid"  # random, template, llm, hybrid
+      llm_seed_ratio: 0.2  # 20% LLM-generated, 80% random/template
+      template_ratio: 0.5  # Of non-LLM, 50% template-based
+      use_llm: true  # Enable LLM-based initialization (Task 7.3)
+      use_seed_programs: true  # Include known good seed programs
+      llm_config:
+        diversity_level: "high"  # low, medium, high
+        program_styles: ["simple", "complex", "creative", "systematic"]
+        cache_programs: true  # Cache generated programs for reuse
+    elite_size: 50  # Top 5% preserved each generation
+
+  genetic_operators:
+    crossover:
+      rate: 0.7
+      methods:
+        - single_point: 0.4
+        - uniform: 0.3
+        - subtree: 0.3
+    mutation:
+      base_rate: 0.1
+      adaptive: true  # Increase when fitness stagnates
+      max_rate: 0.3
+      # Task 7.2: Enhanced adaptive mutation configuration
+      adaptive_strategy: "fitness_based"  # fitness_based, time_decay, cyclic, adaptive_landscape
+      min_rate: 0.01
+      adaptation_speed: 0.1
+      decay_factor: 0.99  # For time_decay strategy
+      cycle_period: 20  # For cyclic strategy
+      landscape_threshold: 0.1  # For adaptive_landscape strategy
+      methods:
+        - operation_replace: 0.3
+        - parameter_mutate: 0.3
+        - insert_delete: 0.2
+        - reorder: 0.2
+      llm_guided:
+        enabled: true
+        trigger: "stagnation"  # or "always", "never"
+        model_tier: 1  # Use cheapest tier
+
+  fitness:
+    metrics:
+      - grid_similarity: 0.7
+      - program_length: 0.2
+      - execution_time: 0.1
+    cache_enabled: true
+    early_termination:
+      threshold: 0.95  # Stop if 95% match
+
+  diversity:
+    method: "fitness_sharing"  # or "speciation", "novelty", "crowding"
+    niche_radius: 0.15
+    species_threshold: 0.3
+
+  parallelization:
+    backend: "multiprocessing"  # or "asyncio", "ray"
+    workers: 4  # CPU cores to use
+    batch_size: 250  # Programs per batch
+    gpu_acceleration: true
+    gpu_batch_size: 100
+
+  convergence:
+    max_generations: 200
+    stagnation_patience: 20
+    min_fitness_improvement: 0.001
+    early_stop: true
+
+  performance:
+    generation_timeout: 30  # seconds
+    memory_limit: 2048  # MB
+    program_timeout: 1  # seconds per program
+
+  # Island model configuration for Task 7.1
+  island_model:
+    enabled: false  # Set to true to use island model
+    num_islands: 4  # Number of sub-populations
+    migration:
+      frequency: 10  # Migrate every N generations
+      migration_rate: 0.1  # Proportion to migrate (10%)
+      selection_method: "tournament"  # best, tournament, random
+      topology: "ring"  # ring, fully_connected, adaptive
+      adaptive: true  # Adapt migration based on performance
+    island_variation:
+      vary_mutation: true  # Different mutation rates per island
+      vary_crossover: true  # Different crossover rates per island
+      vary_diversity: true  # Different diversity methods per island
+  
+  # Co-evolution configuration for Task 7.4
+  coevolution:
+    enabled: false  # Set to true to enable co-evolution
+    fitness_pop_size: 20  # Size of fitness function population
+    elite_ratio: 0.1  # Elite preservation for fitness functions
+    meta_fitness_weights:
+      range: 0.3  # Weight for score differentiation
+      variance: 0.3  # Weight for score distribution
+      correlation: 0.4  # Weight for ground truth correlation
+    component_mutation_rate: 0.3  # Rate of fitness function mutation
+    component_crossover_rate: 0.7  # Rate of fitness function crossover
+  
+  # Novelty search configuration for Task 7.5
+  novelty_search:
+    enabled: false  # Set to true to enable novelty search
+    archive_size: 2000  # Maximum size of novelty archive
+    min_distance: 0.1  # Minimum behavioral distance to be considered novel
+    novelty_weight: 0.5  # Balance between novelty and fitness (0=pure fitness, 1=pure novelty)
+    k_neighbors: 15  # Number of neighbors for novelty calculation
+    archive_save_interval: 50  # Save archive every N generations
+    feature_extraction:
+      include_dimensions: true  # Include output dimensions in behavior
+      include_colors: true  # Include color distribution
+      include_patterns: true  # Include pattern detection
+      include_transformation: true  # Include transformation features
+
+  # Multi-Armed Bandit configuration for Task 8 (Story 2.12)
+  bandit_controller:
+    enabled: false  # Set to true to enable bandit-based strategy selection
+    alpha_prior: 1.0  # Beta distribution success prior
+    beta_prior: 1.0  # Beta distribution failure prior
+    warmup_selections: 50  # Uniform exploration period per strategy
+    success_threshold: 0.5  # Reward threshold for success vs failure
+    cost_aware: true  # Enable cost-adjusted rewards
+    cost_weight: 0.2  # Cost influence on rewards (0.0-1.0)
+    strategies:  # Available generation strategies
+      - hybrid_init  # LLM-guided + random (high quality, expensive)
+      - pure_llm  # Pure LLM synthesis (highest quality, most expensive)
+      - dsl_mutation  # DSL-aware mutations (fast, cheap)
+      - crossover_focused  # Crossover-heavy (fast, cheap)
+      - adaptive_mutation  # Fitness-based mutation (moderate cost)
+
+# Platform-specific overrides
+platform_overrides:
+  kaggle:
+    parallelization:
+      workers: 2  # Limited CPU on Kaggle
+      batch_size: 500  # Larger batches for efficiency
+    performance:
+      memory_limit: 4096  # More memory available
+
+  colab:
+    parallelization:
+      gpu_acceleration: true
+      gpu_batch_size: 200  # Leverage Colab GPU
+    convergence:
+      max_generations: 100  # Limited runtime
+
+  paperspace:
+    parallelization:
+      workers: 1  # Conservative for free tier
+      batch_size: 100
+    performance:
+      memory_limit: 1024
+
+# Experiment tracking
+tracking:
+  log_level: "INFO"
+  save_best_programs: true
+  checkpoint_frequency: 10  # Save every N generations
+  metrics_to_track:
+    - best_fitness
+    - average_fitness
+    - fitness_variance
+    - unique_programs
+    - species_count
+    - convergence_rate
+
+# Reproducibility settings
+reproducibility:
+  seed: null  # Set to an integer for reproducible runs
+  deterministic: false  # Enable fully deterministic execution
+  checkpoint_enabled: true  # Enable state checkpointing
+  checkpoint_dir: "evolution_checkpoints"
+  config_version: "1.0.0"
+
+distributed_evolution:
+  enabled: false
+  checkpoint_frequency: 1
+  heartbeat_timeout: 30
+  heartbeat_interval: 10
+  recovery_timeout: 60
+  gcs_bucket: null
+  gcs_credentials_path: null
+  checkpoint_dir: "distributed_checkpoints"
+  enable_compression: true
+  compression_level: 6
+  batch_checkpoint_size: 5
+  batch_checkpoint_timeout: 5.0
+  coordinator:
+    api_host: "localhost"
+    api_port: 8000
+    coordinator_id: "coordinator-1"
+  platforms:
+    - id: "kaggle-1"
+      role: "worker"
+      memory_limit_mb: 4096
+      worker_count: 2
+      batch_size: 500
+      platform_type: "kaggle"
+    - id: "colab-1"
+      role: "worker"
+      memory_limit_mb: 12288
+      worker_count: 2
+      batch_size: 250
+      platform_type: "colab"
+    - id: "local-1"
+      role: "coordinator"
+      memory_limit_mb: 16384
+      worker_count: 4
+      batch_size: 1000
+      platform_type: "local"

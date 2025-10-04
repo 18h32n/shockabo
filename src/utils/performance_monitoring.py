@@ -174,7 +174,7 @@ class PerformanceCollector:
     def __init__(self, max_metrics: int = 10000):
         """
         Initialize performance collector.
-        
+
         Args:
             max_metrics: Maximum number of metrics to store in memory
         """
@@ -463,7 +463,7 @@ class SystemMonitor:
     def __init__(self, collector: PerformanceCollector, monitoring_interval: float = 10.0):
         """
         Initialize system monitor.
-        
+
         Args:
             collector: Performance collector instance
             monitoring_interval: Monitoring interval in seconds

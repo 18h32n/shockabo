@@ -1,0 +1,97 @@
+# GPU Evaluation Configuration
+# Configuration for GPU-accelerated batch evaluation of DSL programs
+
+gpu_evaluation:
+  # Device selection
+  device:
+    preference: "auto"  # "cuda", "cpu", or "auto"
+    min_memory_mb: 1000  # Minimum GPU memory required
+    
+  # Batch processing
+  batch:
+    max_size: 100  # Maximum programs in single batch
+    adaptive_sizing: true  # Enable adaptive batch sizing
+    memory_safety_factor: 0.8  # Use 80% of available memory
+    
+  # Memory management
+  memory:
+    limit_mb: 8000  # Maximum GPU memory to use (8GB)
+    enable_checkpointing: true  # Enable gradient checkpointing
+    empty_cache_frequency: 10  # Clear cache every N operations
+    monitor_interval: 10  # Check memory every N operations
+    
+  # Performance settings
+  performance:
+    enable_profiling: false  # Enable detailed profiling
+    enable_operation_fusion: true  # Fuse consecutive operations
+    coalesced_memory_access: true  # Optimize memory access patterns
+    tensor_cores: true  # Use tensor cores if available
+    
+  # Fallback configuration
+  fallback:
+    enable_cpu_fallback: true  # Automatically fallback to CPU
+    hybrid_execution: true  # Allow mixed GPU/CPU execution
+    oom_retry_count: 1  # Retry count on out-of-memory
+    
+  # Platform-specific settings
+  platforms:
+    kaggle:
+      max_batch_size: 100
+      memory_limit_mb: 15000  # T4/P100 have 15-16GB
+      device_preference: "cuda"
+      
+    colab:
+      max_batch_size: 80
+      memory_limit_mb: 14000  # T4 typical
+      device_preference: "cuda"
+      
+    paperspace:
+      max_batch_size: 50
+      memory_limit_mb: 7500  # Conservative for various GPUs
+      device_preference: "cuda"
+      
+    local:
+      max_batch_size: 100
+      memory_limit_mb: 8000  # Default 8GB
+      device_preference: "auto"
+      
+  # Operation-specific optimizations
+  operations:
+    # Vectorized operation settings
+    rotation:
+      use_torch_rot90: true  # Use optimized rotation
+      
+    color_mapping:
+      use_lookup_table: true  # Use LUT for color maps
+      cache_mappings: true  # Cache common mappings
+      
+    pattern_detection:
+      use_conv2d: true  # Use convolution for pattern matching
+      cache_kernels: true  # Cache pattern kernels
+      
+    shape_operations:
+      use_morphology: true  # Use morphological operations
+      
+  # Monitoring and logging
+  monitoring:
+    log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+    track_memory_peaks: true
+    track_kernel_times: false  # Detailed kernel timing
+    export_metrics: true  # Export to Prometheus
+    
+  # Integration settings
+  integration:
+    evolution_engine:
+      batch_evaluation: true  # Enable batch evaluation
+      async_evaluation: false  # Async evaluation (future)
+      cache_results: true  # Cache evaluation results
+      
+    evaluation_service:
+      extend_interface: true  # Add batch_evaluate method
+      compatibility_mode: true  # Maintain backward compatibility
+      
+# Benchmark targets
+benchmarks:
+  target_speedup: 10.0  # 10x speedup over CPU
+  max_memory_per_program: 0.5  # MB per program
+  min_batch_efficiency: 0.8  # 80% GPU utilization

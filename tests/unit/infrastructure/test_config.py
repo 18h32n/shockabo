@@ -155,17 +155,14 @@ class TestPlatformDetector:
 
     def test_get_platform_info_local(self):
         """Test getting platform info for local environment."""
-        with mock.patch('psutil.virtual_memory') as mock_memory:
-            mock_memory.return_value.total = 16 * (1024**3)  # 16GB
+        info = PlatformDetector.get_platform_info(Platform.LOCAL)
 
-            info = PlatformDetector.get_platform_info(Platform.LOCAL)
-
-            assert info.platform == Platform.LOCAL
-            assert info.gpu_hours_limit == 9999
-            assert info.reset_frequency == "never"
-            assert info.max_memory_gb == 16
-            assert info.has_persistent_storage is True
-            assert info.setup_script == "local_setup.py"
+        assert info.platform == Platform.LOCAL
+        assert info.gpu_hours_limit == 9999
+        assert info.reset_frequency == "never"
+        assert info.max_memory_gb == 32  # Hardcoded value for 8B model support
+        assert info.has_persistent_storage is True
+        assert info.setup_script == "local_setup.py"
 
     def test_get_platform_info_auto_detect(self):
         """Test getting platform info with auto-detection."""
@@ -206,10 +203,16 @@ class TestPlatformDetector:
             mock_cpu.return_value = 8
 
             with mock.patch.object(PlatformDetector, 'detect_platform') as mock_detect, \
-                 mock.patch.object(PlatformDetector, 'is_gpu_available') as mock_gpu:
+                 mock.patch.object(PlatformDetector, 'get_gpu_memory_info') as mock_gpu:
 
                 mock_detect.return_value = Platform.LOCAL
-                mock_gpu.return_value = True
+                mock_gpu.return_value = {
+                    "gpu_available": True,
+                    "gpu_count": 1,
+                    "gpu_memory_total_mb": 8000,
+                    "gpu_memory_available_mb": 7000,
+                    "gpu_names": ["Test GPU"]
+                }
 
                 limits = PlatformDetector.get_resource_limits()
 

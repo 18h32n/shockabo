@@ -194,3 +194,22 @@ wandb/
 
 # Reference folder (existing)
 reference/
+
+# Evolution and performance data
+evolution_checkpoints/
+performance_baselines/
+pruning_performance_validation_*.json
+
+# Archive and temporary files
+archive/
+nul
+
+# QA artifacts
+qa/
+docs/validation_summaries/
+
+# MCP cache
+.playwright-mcp/
+
+# Story tracking files (temporary)
+story_*.md

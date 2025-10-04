@@ -408,51 +408,51 @@ class TestBatchedWandBClient:
             with patch("sys.modules", {"wandb": MagicMock()}):
                 import wandb
                 with patch.object(wandb, "log") as mock_log:
-                # Mock current run
-                batched_client._current_run = MagicMock()
-                
-                # Start batch processing
-                await batched_client.start_batch_processing()
-                
-                # Create multiple evaluation results
-                results = []
-                for i in range(5):
-                    result = EvaluationResult(
-                        task_id=f"task_{i}",
-                        strategy_used="test_strategy",
-                        attempts=[
-                            TaskMetrics(
-                                task_id=f"task_{i}",
-                                attempt_number=AttemptNumber.FIRST,
-                                pixel_accuracy=PixelAccuracy(
-                                    accuracy=0.8 + (i * 0.02),
-                                    total_pixels=100,
-                                    correct_pixels=80 + (i * 2),
-                                    perfect_match=i == 4
-                                ),
-                                confidence_score=0.9,
-                                processing_time_ms=100 + i * 10,
-                                error_category=None,
-                                error_details=None
-                            )
-                        ],
-                        total_processing_time_ms=100 + i * 10
-                    )
-                    results.append(result)
-                
-                # Log results async
-                for result in results:
-                    success = await batched_client.log_evaluation_result_async(result)
-                    assert success
-                
-                # Wait for batch processing
-                await asyncio.sleep(0.2)  # Allow batch to flush
-                
-                # Verify batched logging occurred
-                assert mock_log.call_count >= 1  # At least one batch was logged
-                
-                # Stop batch processing
-                await batched_client.stop_batch_processing()
+                    # Mock current run
+                    batched_client._current_run = MagicMock()
+                    
+                    # Start batch processing
+                    await batched_client.start_batch_processing()
+                    
+                    # Create multiple evaluation results
+                    results = []
+                    for i in range(5):
+                        result = EvaluationResult(
+                            task_id=f"task_{i}",
+                            strategy_used="test_strategy",
+                            attempts=[
+                                TaskMetrics(
+                                    task_id=f"task_{i}",
+                                    attempt_number=AttemptNumber.FIRST,
+                                    pixel_accuracy=PixelAccuracy(
+                                        accuracy=0.8 + (i * 0.02),
+                                        total_pixels=100,
+                                        correct_pixels=80 + (i * 2),
+                                        perfect_match=i == 4
+                                    ),
+                                    confidence_score=0.9,
+                                    processing_time_ms=100 + i * 10,
+                                    error_category=None,
+                                    error_details=None
+                                )
+                            ],
+                            total_processing_time_ms=100 + i * 10
+                        )
+                        results.append(result)
+                    
+                    # Log results async
+                    for result in results:
+                        success = await batched_client.log_evaluation_result_async(result)
+                        assert success
+                    
+                    # Wait for batch processing
+                    await asyncio.sleep(0.2)  # Allow batch to flush
+                    
+                    # Verify batched logging occurred
+                    assert mock_log.call_count >= 1  # At least one batch was logged
+                    
+                    # Stop batch processing
+                    await batched_client.stop_batch_processing()
     
     @pytest.mark.asyncio
     async def test_batch_resource_usage(self, batched_client):
@@ -461,34 +461,34 @@ class TestBatchedWandBClient:
             with patch("sys.modules", {"wandb": MagicMock()}):
                 import wandb
                 with patch.object(wandb, "log") as mock_log:
-                batched_client._current_run = MagicMock()
-                
-                await batched_client.start_batch_processing()
-                
-                # Create multiple resource usage records
-                for i in range(4):
-                    usage = ResourceUsage(
-                        task_id=f"task_{i}",
-                        strategy_type=StrategyType.DIRECT_SOLVE,
-                        cpu_seconds=10.0 + i,
-                        memory_mb=256.0 + i * 64,
-                        gpu_memory_mb=1024.0,
-                        api_calls={"openai": i + 1, "anthropic": i},
-                        total_tokens=1000 + i * 100,
-                        estimated_cost=0.01 + i * 0.005,
-                        timestamp=datetime.now()
-                    )
+                    batched_client._current_run = MagicMock()
                     
-                    success = await batched_client.log_resource_usage_async(usage)
-                    assert success
-                
-                # Force flush
-                await batched_client._flush_batches(force=True)
-                
-                # Verify batch was logged
-                assert mock_log.call_count >= 1
-                
-                await batched_client.stop_batch_processing()
+                    await batched_client.start_batch_processing()
+                    
+                    # Create multiple resource usage records
+                    for i in range(4):
+                        usage = ResourceUsage(
+                            task_id=f"task_{i}",
+                            strategy_type=StrategyType.DIRECT_SOLVE,
+                            cpu_seconds=10.0 + i,
+                            memory_mb=256.0 + i * 64,
+                            gpu_memory_mb=1024.0,
+                            api_calls={"openai": i + 1, "anthropic": i},
+                            total_tokens=1000 + i * 100,
+                            estimated_cost=0.01 + i * 0.005,
+                            timestamp=datetime.now()
+                        )
+                        
+                        success = await batched_client.log_resource_usage_async(usage)
+                        assert success
+                    
+                    # Force flush
+                    await batched_client._flush_batches(force=True)
+                    
+                    # Verify batch was logged
+                    assert mock_log.call_count >= 1
+                    
+                    await batched_client.stop_batch_processing()
     
     @pytest.mark.asyncio
     async def test_batch_custom_metrics(self, batched_client):
@@ -497,33 +497,33 @@ class TestBatchedWandBClient:
             with patch("sys.modules", {"wandb": MagicMock()}):
                 import wandb
                 with patch.object(wandb, "log") as mock_log:
-                batched_client._current_run = MagicMock()
-                
-                await batched_client.start_batch_processing()
-                
-                # Log custom metrics
-                for i in range(3):
-                    metrics = {
-                        f"custom_metric_{i}": i * 10,
-                        f"accuracy_{i}": 0.8 + i * 0.1,
-                        "timestamp": datetime.now().isoformat(),
-                    }
+                    batched_client._current_run = MagicMock()
                     
-                    success = await batched_client.log_custom_metrics_async(metrics)
-                    assert success
-                
-                # Force flush
-                await batched_client._flush_batches(force=True)
-                
-                # Verify batch was logged with prefixes
-                assert mock_log.called
-                logged_data = mock_log.call_args[0][0]
-                
-                # Check that batch prefixes were applied
-                batch_keys = [k for k in logged_data.keys() if k.startswith("batch_")]
-                assert len(batch_keys) > 0
-                
-                await batched_client.stop_batch_processing()
+                    await batched_client.start_batch_processing()
+                    
+                    # Log custom metrics
+                    for i in range(3):
+                        metrics = {
+                            f"custom_metric_{i}": i * 10,
+                            f"accuracy_{i}": 0.8 + i * 0.1,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                        
+                        success = await batched_client.log_custom_metrics_async(metrics)
+                        assert success
+                    
+                    # Force flush
+                    await batched_client._flush_batches(force=True)
+                    
+                    # Verify batch was logged with prefixes
+                    assert mock_log.called
+                    logged_data = mock_log.call_args[0][0]
+                    
+                    # Check that batch prefixes were applied
+                    batch_keys = [k for k in logged_data.keys() if k.startswith("batch_")]
+                    assert len(batch_keys) > 0
+                    
+                    await batched_client.stop_batch_processing()
     
     @pytest.mark.asyncio
     async def test_batch_retry_logic(self, batched_client):
@@ -573,31 +573,31 @@ class TestBatchedWandBClient:
             with patch("sys.modules", {"wandb": MagicMock()}):
                 import wandb
                 with patch.object(wandb, "log") as mock_log:
-                batched_client._current_run = MagicMock()
-                
-                await batched_client.start_batch_processing()
-                
-                # Process several operations
-                for i in range(5):
-                    await batched_client.log_custom_metrics_async({"metric": i})
-                
-                # Force flush
-                await batched_client._flush_batches(force=True)
-                
-                # Check metrics
-                metrics = batched_client.get_batch_metrics()
-                assert metrics["total_operations"] >= 5
-                assert metrics["total_batches"] >= 1
-                assert metrics["success_rate"] > 0
-                assert metrics["average_batch_size"] > 0
-                assert metrics["average_flush_time_ms"] >= 0
-                
-                # Check queue sizes
-                queue_sizes = batched_client.get_queue_sizes()
-                assert "batch_queue" in queue_sizes
-                assert "retry_queue" in queue_sizes
-                
-                await batched_client.stop_batch_processing()
+                    batched_client._current_run = MagicMock()
+                    
+                    await batched_client.start_batch_processing()
+                    
+                    # Process several operations
+                    for i in range(5):
+                        await batched_client.log_custom_metrics_async({"metric": i})
+                    
+                    # Force flush
+                    await batched_client._flush_batches(force=True)
+                    
+                    # Check metrics
+                    metrics = batched_client.get_batch_metrics()
+                    assert metrics["total_operations"] >= 5
+                    assert metrics["total_batches"] >= 1
+                    assert metrics["success_rate"] > 0
+                    assert metrics["average_batch_size"] > 0
+                    assert metrics["average_flush_time_ms"] >= 0
+                    
+                    # Check queue sizes
+                    queue_sizes = batched_client.get_queue_sizes()
+                    assert "batch_queue" in queue_sizes
+                    assert "retry_queue" in queue_sizes
+                    
+                    await batched_client.stop_batch_processing()
     
     @pytest.mark.asyncio
     async def test_batch_disabled_fallback(self):

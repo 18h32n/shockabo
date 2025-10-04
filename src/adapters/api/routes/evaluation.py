@@ -297,7 +297,7 @@ class SubmitTaskRequest(BaseModel):
         ...,
         description="Unique ARC task identifier",
         example="arc_2024_001",
-        regex=r"^arc_\d{4}_\d{3}$"
+        pattern=r"^arc_\d{4}_\d{3}$"
     )
     predicted_output: list[list[int]] = Field(
         ...,
@@ -1309,7 +1309,7 @@ async def get_experiment_status(
         ...,
         description="Unique experiment identifier",
         example="exp_pattern_analysis_20240101_143022",
-        regex=r"^exp_[a-zA-Z0-9_]+$"
+        pattern=r"^exp_[a-zA-Z0-9_]+$"
     ),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -1877,7 +1877,7 @@ async def get_dashboard_metrics(
 async def get_strategy_performance(
     time_window: str = Query(
         "1h",
-        regex="^(1h|6h|24h|7d|30d)$",
+        pattern="^(1h|6h|24h|7d|30d)$",
         description="Analysis time window (1h=1 hour, 6h=6 hours, 24h=1 day, 7d=1 week, 30d=1 month)",
         example="24h"
     ),

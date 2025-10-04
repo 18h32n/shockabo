@@ -92,7 +92,7 @@ class OutOfMemoryHandler:
     def __init__(self, min_batch_size: int = 1, memory_threshold_mb: float = 22000):
         """
         Initialize OOM handler.
-        
+
         Args:
             min_batch_size: Minimum batch size before giving up
             memory_threshold_mb: Memory threshold for proactive management
@@ -191,7 +191,7 @@ class CheckpointManager:
     def __init__(self, checkpoint_dir: str = "checkpoints", save_interval_minutes: int = 10):
         """
         Initialize checkpoint manager.
-        
+
         Args:
             checkpoint_dir: Directory for saving checkpoints
             save_interval_minutes: Interval between automatic saves
@@ -210,13 +210,13 @@ class CheckpointManager:
     ) -> bool:
         """
         Save training checkpoint with error handling.
-        
+
         Args:
             model: Model to save
             optimizer: Optimizer state
             metadata: Checkpoint metadata
             force_save: Force save regardless of interval
-            
+
         Returns:
             Success status
         """
@@ -266,11 +266,11 @@ class CheckpointManager:
     ) -> CheckpointMetadata | None:
         """
         Load the latest checkpoint with error handling.
-        
+
         Args:
             model: Model to load state into
             optimizer: Optimizer to load state into
-            
+
         Returns:
             Checkpoint metadata if successful, None otherwise
         """
@@ -353,11 +353,11 @@ class ModelLoadingHandler:
     ) -> tuple[nn.Module | None, Any | None, dict[str, Any]]:
         """
         Load model with progressive fallback strategies.
-        
+
         Args:
             model_name: Model name to load
             preferred_config: Preferred loading configuration
-            
+
         Returns:
             Tuple of (model, tokenizer, final_config)
         """
@@ -452,7 +452,7 @@ def resilient_operation(
 ):
     """
     Decorator for resilient operations with automatic retry and error handling.
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         delay_seconds: Initial delay between retries
@@ -681,10 +681,10 @@ def main():
 
     # Test checkpoint manager
     checkpoint_dir = "test_checkpoints"
-    test_checkpoint_manager = CheckpointManager(checkpoint_dir)
+    CheckpointManager(checkpoint_dir)
 
     # Create dummy metadata
-    metadata = CheckpointMetadata(
+    CheckpointMetadata(
         model_name="test_model",
         epoch=1,
         step=100,
@@ -713,7 +713,7 @@ def main():
     logger.info(f"Error summary: {summary}")
 
     # Print configuration
-    config = create_error_handling_config()
+    create_error_handling_config()
     logger.info("Error handling configuration created successfully")
 
     print("\n" + "="*60)

@@ -19,7 +19,7 @@ class RateLimiter:
 
     def __init__(self, max_requests: int, window_seconds: int):
         """Initialize rate limiter.
-        
+
         Args:
             max_requests: Maximum requests allowed in the time window
             window_seconds: Time window in seconds
@@ -30,10 +30,10 @@ class RateLimiter:
 
     def is_allowed(self, identifier: str) -> tuple[bool, dict]:
         """Check if request is allowed and return rate limit info.
-        
+
         Args:
             identifier: Client identifier (IP address, user ID, etc.)
-            
+
         Returns:
             Tuple of (is_allowed, rate_limit_headers)
         """
@@ -70,7 +70,7 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, rate_limits: dict[str, RateLimiter] | None = None):
         """Initialize rate limiting middleware.
-        
+
         Args:
             app: FastAPI application
             rate_limits: Dictionary mapping path patterns to rate limiters
@@ -93,10 +93,10 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
 
     def get_client_identifier(self, request: Request) -> str:
         """Get client identifier for rate limiting.
-        
+
         Args:
             request: FastAPI request object
-            
+
         Returns:
             Client identifier string
         """
@@ -130,10 +130,10 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
 
     def get_rate_limiter(self, path: str) -> RateLimiter:
         """Get appropriate rate limiter for the given path.
-        
+
         Args:
             path: Request path
-            
+
         Returns:
             RateLimiter instance
         """
@@ -147,11 +147,11 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Process request with rate limiting.
-        
+
         Args:
             request: FastAPI request
             call_next: Next middleware in chain
-            
+
         Returns:
             Response with rate limit headers
         """
@@ -209,7 +209,7 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
 
     def get_statistics(self) -> dict:
         """Get rate limiting statistics.
-        
+
         Returns:
             Dictionary with rate limiting stats
         """
@@ -236,10 +236,10 @@ _rate_limiting_middleware = None
 
 def get_rate_limiting_middleware(custom_limits: dict[str, RateLimiter] | None = None) -> RateLimitingMiddleware:
     """Get rate limiting middleware instance.
-    
+
     Args:
         custom_limits: Optional custom rate limits
-        
+
     Returns:
         RateLimitingMiddleware instance
     """

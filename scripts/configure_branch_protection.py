@@ -4,11 +4,10 @@ Script to configure GitHub branch protection rules for ARC Prize 2025 repository
 This script sets up branch protection rules to enforce code quality and review processes.
 """
 
-import json
 import os
-import requests
 import sys
-from typing import Dict, Any
+
+import requests
 
 
 def get_github_token() -> str:
@@ -23,8 +22,8 @@ def get_github_token() -> str:
 
 
 def configure_branch_protection(
-    owner: str, 
-    repo: str, 
+    owner: str,
+    repo: str,
     branch: str = "main",
     token: str = None
 ) -> bool:
@@ -42,7 +41,7 @@ def configure_branch_protection(
     """
     if not token:
         token = get_github_token()
-    
+
     # Branch protection configuration
     protection_config = {
         "required_status_checks": {
@@ -69,31 +68,31 @@ def configure_branch_protection(
         "lock_branch": False,
         "allow_fork_syncing": True
     }
-    
+
     # GitHub API endpoint
     url = f"https://api.github.com/repos/{owner}/{repo}/branches/{branch}/protection"
-    
+
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
         "Content-Type": "application/json"
     }
-    
+
     try:
         response = requests.put(url, headers=headers, json=protection_config)
-        
+
         if response.status_code == 200:
             print(f"✅ Successfully configured branch protection for {owner}/{repo}:{branch}")
             return True
         elif response.status_code == 403:
-            print(f"❌ Insufficient permissions to configure branch protection")
-            print(f"   Ensure the GitHub token has 'repo' permissions")
+            print("❌ Insufficient permissions to configure branch protection")
+            print("   Ensure the GitHub token has 'repo' permissions")
             return False
         else:
             print(f"❌ Failed to configure branch protection: {response.status_code}")
             print(f"   Response: {response.text}")
             return False
-            
+
     except requests.exceptions.RequestException as e:
         print(f"❌ Network error configuring branch protection: {e}")
         return False
@@ -116,9 +115,9 @@ def main():
             print("Usage: python configure_branch_protection.py <owner> <repo> [branch]")
             print("Or set GITHUB_REPOSITORY environment variable")
             sys.exit(1)
-    
+
     print(f"Configuring branch protection for {owner}/{repo}:{branch}")
-    
+
     try:
         success = configure_branch_protection(owner, repo, branch)
         sys.exit(0 if success else 1)

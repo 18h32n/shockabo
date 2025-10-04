@@ -118,7 +118,7 @@ def create_auth_attempt(
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
 async def login(login_data: LoginRequest, request: Request):
     """Authenticate user and return JWT tokens.
-    
+
     This endpoint implements:
     - Rate limiting (5 attempts per minute per IP)
     - Account lockout after 5 failed attempts
@@ -254,13 +254,13 @@ async def login(login_data: LoginRequest, request: Request):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during authentication"
-        )
+        ) from None
 
 
 @router.post("/refresh", response_model=RefreshResponse, status_code=status.HTTP_200_OK)
 async def refresh_token(refresh_data: RefreshRequest, request: Request):
     """Refresh JWT access token using refresh token.
-    
+
     This endpoint validates the refresh token and issues a new access token.
     """
     client_ip = get_client_ip(request)
@@ -300,13 +300,13 @@ async def refresh_token(refresh_data: RefreshRequest, request: Request):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during token refresh"
-        )
+        ) from None
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(register_data: RegisterRequest, request: Request):
     """Register a new user account.
-    
+
     This endpoint creates a new user account with password validation
     and comprehensive security checks.
     """
@@ -368,7 +368,7 @@ async def register_user(register_data: RegisterRequest, request: Request):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
-        )
+        ) from e
     except Exception as e:
         logger.error(
             "registration_unexpected_error",
@@ -382,13 +382,13 @@ async def register_user(register_data: RegisterRequest, request: Request):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during registration"
-        )
+        ) from None
 
 
 @router.get("/me", status_code=status.HTTP_200_OK)
 async def get_current_user_info(request: Request):
     """Get current authenticated user information.
-    
+
     This endpoint requires authentication and returns user details.
     """
     # This would use the authentication middleware

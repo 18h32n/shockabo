@@ -1,0 +1,109 @@
+# Program Cache Configuration
+
+# Cache storage settings
+storage:
+  # Maximum cache size in GB (as per story requirement)
+  size_limit_gb: 1.0
+  
+  # Cache directory (relative to project root)
+  cache_dir: data/program_cache
+  
+  # Eviction policy when cache is full
+  eviction_policy: least-recently-used
+  
+  # Days to keep unused programs before cleanup
+  retention_days: 30
+
+# Similarity detection settings
+similarity:
+  # Threshold for considering programs similar (0.0 to 1.0)
+  similarity_threshold: 0.95
+  
+  # Maximum programs to check for similarity (performance optimization)
+  max_similarity_checks: 1000
+  
+  # Types of similarity to check
+  check_types:
+    - exact      # Exact hash match
+    - semantic   # Similar operation sequences
+    - fuzzy      # Near matches with minor differences
+
+# Pattern mining configuration
+pattern_mining:
+  # Minimum frequency for a pattern to be considered significant
+  min_frequency: 5
+  
+  # Minimum success rate for pattern inclusion
+  min_success_rate: 0.7
+  
+  # Maximum patterns to track
+  max_patterns: 500
+  
+  # Pattern types to mine
+  pattern_types:
+    - sequence    # Operation sequences
+    - structure   # AST structural patterns
+    - parameter   # Common parameter values
+
+# Performance settings
+performance:
+  # Maximum time for similarity check (ms)
+  similarity_timeout_ms: 100
+  
+  # Maximum time for pattern analysis (seconds)
+  pattern_analysis_timeout_s: 30
+  
+  # Cache lookup timeout (ms)
+  lookup_timeout_ms: 10
+  
+  # Export timeout for 100 programs (seconds)
+  export_timeout_s: 5
+
+# Analytics settings
+analytics:
+  # Enable real-time analytics collection
+  enable_analytics: true
+  
+  # Analytics update interval (seconds)
+  update_interval_s: 60
+  
+  # Metrics to track
+  metrics:
+    - cache_hit_rate
+    - program_success_rate
+    - pattern_frequency
+    - task_type_distribution
+    - generation_distribution
+    - storage_efficiency
+
+# Export settings
+export:
+  # Default export format
+  default_format: json
+  
+  # Available export formats
+  formats:
+    - json       # Human-readable JSON
+    - msgpack    # Efficient binary format
+    - dsl        # Pretty-printed DSL
+    - python     # Python code with comments
+  
+  # Include metadata in exports
+  include_metadata: true
+  
+  # Batch size for exports
+  batch_size: 100
+
+# Ensemble integration settings
+ensemble:
+  # Enable ensemble voting integration
+  enable_ensemble: true
+  
+  # Weight successful programs higher in voting
+  success_weight_multiplier: 2.0
+  
+  # Minimum programs for ensemble decision
+  min_programs_for_vote: 3
+  
+  # Confidence threshold for ensemble
+  confidence_threshold: 0.7

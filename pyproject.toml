@@ -186,6 +186,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "e2e: marks tests as end-to-end tests",
+    "performance: marks tests as performance tests",
     "kaggle: marks tests specific to Kaggle platform",
     "colab: marks tests specific to Google Colab platform",
     "paperspace: marks tests specific to Paperspace platform",

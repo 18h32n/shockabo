@@ -13,6 +13,18 @@ from typing import Any
 
 import yaml
 
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
+try:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    HAS_TRANSFORMERS = True
+except ImportError:
+    HAS_TRANSFORMERS = False
+
 from src.domain.models import (
     ARCTask,
     ARCTaskSolution,
@@ -21,6 +33,27 @@ from src.domain.models import (
     TTTAdaptation,
 )
 from src.utils.ttt_methodology import MIT_TTTStrategy
+
+try:
+    from src.utils.grid_ops import grid_to_string, string_to_grid
+    HAS_GRID_OPS = True
+except ImportError:
+    HAS_GRID_OPS = False
+
+    def grid_to_string(grid):
+        """Fallback grid to string converter."""
+        return "\n".join([" ".join(map(str, row)) for row in grid])
+
+    def string_to_grid(text):
+        """Fallback string to grid converter."""
+        lines = text.strip().split('\n')
+        grid = []
+        for line in lines:
+            if line.strip():
+                row = [int(x) for x in line.split() if x.isdigit()]
+                if row:
+                    grid.append(row)
+        return grid if grid else [[0]]
 
 
 @dataclass
@@ -141,8 +174,11 @@ class TTTAdapter:
         self.config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.config.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def _setup_device(self) -> torch.device:
+    def _setup_device(self):
         """Set up computing device based on configuration."""
+        if not HAS_TORCH:
+            raise RuntimeError("PyTorch is required for TTT adapter")
+
         if self.config.device == "auto":
             if torch.cuda.is_available():
                 return torch.device("cuda")
@@ -156,6 +192,9 @@ class TTTAdapter:
         """Initialize base model and tokenizer with quantization if enabled."""
         if self.model is not None:
             return
+
+        if not HAS_TRANSFORMERS:
+            raise RuntimeError("Transformers library is required for TTT adapter")
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -428,7 +467,7 @@ class TTTAdapter:
 
     def _estimate_gpu_memory(self) -> float:
         """Estimate GPU memory usage in MB."""
-        if self.device.type == "cuda":
+        if HAS_TORCH and hasattr(self, 'device') and self.device.type == "cuda":
             return torch.cuda.memory_allocated() / 1024 / 1024
         return 0.0
 
@@ -446,5 +485,5 @@ class TTTAdapter:
         self.lora_adapters.clear()
 
         # Clear GPU cache if using CUDA
-        if self.device.type == "cuda":
+        if HAS_TORCH and hasattr(self, 'device') and self.device.type == "cuda":
             torch.cuda.empty_cache()
