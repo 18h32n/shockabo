@@ -261,13 +261,7 @@ class InferenceProfiler:
             per_instance_epochs=1,
             batch_size=1,
             gradient_accumulation_steps=4,
-            max_new_tokens=300,
-            # Optimization flags (to be added to config)
-            enable_kv_cache_optimization=True,
-            enable_static_cache=True,
-            enable_torch_compile=True,
-            inference_batch_size=1,
-            max_inference_time=300
+            max_training_time=300.0
         )
         
         # Run baseline

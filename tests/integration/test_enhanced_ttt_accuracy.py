@@ -504,8 +504,7 @@ def test_enhanced_ttt_accuracy(evaluation_data_paths):
         lora_rank=64,
         lora_alpha=32,
         num_epochs=2,
-        per_instance_epochs=1,
-        early_stopping_patience=3
+        per_instance_epochs=1
     )
     
     validator = EnhancedTTTValidator(
