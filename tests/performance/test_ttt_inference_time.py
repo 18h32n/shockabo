@@ -450,7 +450,6 @@ def test_torch_compile_optimization(evaluation_data_path, baseline_config, optim
     assert speedup >= 1.10, f"Torch.compile speedup {speedup:.2f}x below expected (1.10x)"
 
 
-@pytest.mark.skip(reason="Requires model weights and GPU - run manually")
 def test_combined_optimizations(evaluation_data_path):
     """
     Test all optimizations combined.

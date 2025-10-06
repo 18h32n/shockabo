@@ -487,7 +487,6 @@ def test_baseline_ttt_accuracy(evaluation_data_paths):
         f"Baseline accuracy {report.accuracy:.2%} outside expected range (50-60%)"
 
 
-@pytest.mark.skip(reason="Requires model weights and GPU - run manually for full validation")
 def test_enhanced_ttt_accuracy(evaluation_data_paths):
     """
     Test enhanced TTT accuracy (with all optimizations).
