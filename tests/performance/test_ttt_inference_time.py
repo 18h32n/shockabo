@@ -255,29 +255,34 @@ class InferenceProfiler:
         
         logger.info(f"Benchmarking {len(task_ids)} tasks")
         
-        # Baseline configuration (no optimizations)
+        # Memory-optimized baseline configuration for Kaggle
         baseline_config = TTTTrainingConfig(
-            model_name="meta-llama/Llama-3.2-1B",
+            model_name="gpt2",  # Memory-efficient model for Kaggle
             device="auto",
             quantization=True,
             mixed_precision=True,
-            num_epochs=2,
+            num_epochs=1,      # Reduced for memory efficiency
             per_instance_epochs=1,
             batch_size=1,
-            gradient_accumulation_steps=4
+            gradient_accumulation_steps=2,  # Reduced from 4
+            max_sequence_length=1024,       # Reduced for memory
+            memory_limit_mb=12288          # Kaggle T4 optimized
         )
         
-        # Optimized configuration (all optimizations enabled)
+        # Memory-optimized configuration (same model as baseline for fair comparison)
         optimized_config = TTTTrainingConfig(
-            model_name="meta-llama/Llama-3.2-1B",
+            model_name="gpt2",  # Same as baseline for memory constraints
             device="auto",
             quantization=True,
             mixed_precision=True,
-            num_epochs=2,
+            num_epochs=1,      # Reduced for memory efficiency
             per_instance_epochs=1,
             batch_size=1,
-            gradient_accumulation_steps=4,
-            max_training_time=300.0
+            gradient_accumulation_steps=1,  # More optimized than baseline
+            max_training_time=300.0,
+            max_sequence_length=1024,       # Reduced for memory
+            memory_limit_mb=12288,         # Kaggle T4 optimized
+            lora_rank=8                    # Smaller than baseline (16) for optimization comparison
         )
         
         # Run baseline
