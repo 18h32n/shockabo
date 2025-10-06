@@ -19,6 +19,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.utils.auth_config import get_model_access_info, setup_hf_auth, suggest_public_model
 from src.utils.lora_adapter import LoRAAdapter, LoRAConfig
 from src.utils.ttt_data_conversion import AugmentationType, TTTDataConverter, TTTTask
+from src.utils.ttt_leave_one_out import LeaveOneOutConfig, LeaveOneOutGenerator
+from src.utils.ttt_self_consistency import SelfConsistencyConfig, SelfConsistencyValidator
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,8 @@ class TTTTrainingConfig:
     permute_n: int = 1
     temperature: float = 0.0
     num_return_sequences: int = 1
+    consensus_threshold: float = 0.6
+    use_self_consistency: bool = True
 
     # Memory management
     max_sequence_length: int = 2048
@@ -162,6 +166,19 @@ class TTTTrainer:
         self.base_adapter = None
         self.data_converter = TTTDataConverter(use_gpt_format=True)
         self.voter = SelfConsistencyVoter(temperature=config.temperature)
+        
+        # Initialize leave-one-out generator for per-instance adaptation
+        loo_config = LeaveOneOutConfig(min_examples=2, max_examples=10)
+        self.loo_generator = LeaveOneOutGenerator(loo_config)
+        
+        # Initialize self-consistency validator
+        sc_config = SelfConsistencyConfig(
+            permute_n=config.permute_n,
+            consensus_threshold=config.consensus_threshold,
+            enable_geometric=True,
+            enable_color_remap=False
+        )
+        self.self_consistency_validator = SelfConsistencyValidator(sc_config)
 
         # Training state
         self.current_adapter = None
