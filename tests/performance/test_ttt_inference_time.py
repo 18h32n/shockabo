@@ -17,7 +17,7 @@ import pytest
 import torch
 
 from src.domain.models import ARCTask
-from src.utils.ttt_methodology import TTTTrainer, TTTTrainingConfig
+from src.utils.ttt_methodology import TTTTrainer, TTTTrainingConfig, MIT_TTTStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +159,14 @@ class InferenceProfiler:
             task_data = self.evaluation_challenges[task_id]
             task = ARCTask.from_dict(task_data, task_id, task_source="evaluation")
             
-            # Initialize trainer
+            # Initialize strategy and model
             model_load_start = time.time()
-            trainer = TTTTrainer(config)
+            strategy = MIT_TTTStrategy(config)
+            try:
+                strategy.trainer.initialize_model()
+            except Exception as e:
+                logger.error(f"Failed to initialize model for task {task_id}: {e}")
+                raise
             model_load_time = time.time() - model_load_start
             
             # Measure peak memory
@@ -171,17 +176,28 @@ class InferenceProfiler:
                 torch.cuda.reset_peak_memory_stats()
                 initial_memory = torch.cuda.memory_allocated() / 1024**2
             
-            # Adaptation phase
-            adaptation_start = time.time()
-            # TODO: Replace with actual adaptation
-            # adaptation_result = trainer.adapt_to_task(task)
-            adaptation_time = time.time() - adaptation_start
-            
-            # Inference phase
-            inference_start = time.time()
-            # TODO: Replace with actual inference
-            # prediction, confidence = trainer.predict(task)
-            inference_time = time.time() - inference_start
+            # Run complete TTT strategy (adaptation + inference)
+            try:
+                inference_start = time.time()
+                prediction, metadata = strategy.solve_task(task, use_self_consistency=True)
+                total_inference_time = time.time() - inference_start
+                
+                # Extract adaptation time from metadata if available
+                adaptation_result = metadata.get("adaptation_result")
+                adaptation_time = adaptation_result.adaptation_time if adaptation_result else 0.0
+                inference_time = total_inference_time - adaptation_time
+                
+            except Exception as e:
+                logger.error(f"Error running TTT strategy on task {task_id}: {e}")
+                # Use fallback timing values
+                adaptation_time = 0.0
+                inference_time = 0.0
+            finally:
+                # Cleanup strategy resources
+                try:
+                    strategy.cleanup()
+                except Exception as e:
+                    logger.warning(f"Error cleaning up strategy: {e}")
             
             # Measure memory
             if measure_memory and torch.cuda.is_available():

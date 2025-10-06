@@ -19,7 +19,7 @@ import pytest
 from src.domain.models import ARCTask
 from src.utils.ttt_leave_one_out import LeaveOneOutConfig, LeaveOneOutGenerator
 from src.utils.ttt_lora_optimizer import LoRAOptimizerConfig
-from src.utils.ttt_methodology import TTTTrainer, TTTTrainingConfig
+from src.utils.ttt_methodology import TTTTrainer, TTTTrainingConfig, MIT_TTTStrategy
 from src.utils.ttt_self_consistency import SelfConsistencyConfig, SelfConsistencyValidator
 
 logger = logging.getLogger(__name__)
@@ -154,9 +154,18 @@ class EnhancedTTTValidator:
         with open(solutions_data_path) as f:
             self.evaluation_solutions = json.load(f)
         
-        # Initialize TTT trainer
+        # Initialize TTT strategy
         self.config = config or self._create_default_config()
-        self.trainer = TTTTrainer(self.config)
+        self.strategy = MIT_TTTStrategy(self.config)
+        
+        # Initialize model (this will take time on first run)
+        logger.info("Initializing TTT strategy with model loading...")
+        try:
+            self.strategy.trainer.initialize_model()
+            logger.info("TTT strategy initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize TTT strategy: {e}")
+            raise
         
         logger.info(f"Loaded {len(self.evaluation_challenges)} evaluation tasks")
     
@@ -269,21 +278,31 @@ class EnhancedTTTValidator:
             ground_truth = self.evaluation_solutions[task_id][0]  # First test output
             
             # Run enhanced TTT (with leave-one-out, self-consistency, LoRA optimization)
-            # This is a placeholder - actual implementation would use trainer
             logger.info(f"Validating task {task_id} (difficulty: {difficulty})")
             
-            # TODO: Replace with actual TTT inference
-            # For now, return a mock result for testing framework
-            adaptation_start = time.time()
-            # adaptation_result = self.trainer.adapt_to_task(task)
-            adaptation_time = time.time() - adaptation_start
-            
-            inference_start = time.time()
-            # prediction, confidence = self.trainer.predict(task)
-            # Mock prediction for now
-            prediction = [[0]]
-            confidence = 0.5
-            inference_time = time.time() - inference_start
+            # Use actual MIT TTT strategy implementation
+            try:
+                start_inference = time.time()
+                prediction, metadata = self.strategy.solve_task(task, use_self_consistency=True)
+                inference_time = time.time() - start_inference
+                
+                # Extract metrics from metadata
+                confidence = metadata.get("confidence", 0.0)
+                adaptation_result = metadata.get("adaptation_result")
+                adaptation_time = adaptation_result.adaptation_time if adaptation_result else 0.0
+                
+                # Handle case where strategy returns fallback
+                if not metadata.get("success", True):
+                    logger.warning(f"TTT strategy failed for task {task_id}: {metadata.get('error', 'Unknown error')}")
+                    confidence = 0.0
+                    
+            except Exception as e:
+                logger.error(f"Error running TTT strategy on task {task_id}: {e}")
+                # Return fallback values if strategy fails
+                prediction = [[0]]
+                confidence = 0.0
+                adaptation_time = 0.0
+                inference_time = 0.0
             
             # Check correctness
             correct = self._grids_match(prediction, ground_truth)
@@ -360,6 +379,15 @@ class EnhancedTTTValidator:
             logger.info(f"Report saved to {report_path}")
         
         return report
+    
+    def cleanup(self) -> None:
+        """Clean up strategy resources."""
+        if hasattr(self, 'strategy'):
+            try:
+                self.strategy.cleanup()
+                logger.info("TTT strategy cleanup completed")
+            except Exception as e:
+                logger.warning(f"Error during strategy cleanup: {e}")
 
 
 @pytest.fixture
