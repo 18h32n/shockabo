@@ -185,12 +185,19 @@ class TTTTrainer:
         self.training_history = []
 
         logger.info(f"Initialized TTT trainer with device: {self.device}")
+        
+        # Add device debugging for multi-GPU environments
+        if torch.cuda.is_available():
+            logger.info(f"CUDA device count: {torch.cuda.device_count()}")
+            logger.info(f"Current CUDA device: {torch.cuda.current_device()}")
+            logger.info(f"Target device: {self.device}")
 
     def _setup_device(self) -> torch.device:
         """Setup computing device."""
         if self.config.device == "auto":
             if torch.cuda.is_available():
-                return torch.device("cuda")
+                # Force use of first GPU to avoid multi-GPU device mismatch
+                return torch.device("cuda:0")
             elif torch.backends.mps.is_available():
                 return torch.device("mps")
             else:
@@ -236,7 +243,10 @@ class TTTTrainer:
 
         if self.config.quantization and self.device.type == "cuda":
             model_kwargs["load_in_8bit"] = True
-            model_kwargs["device_map"] = "auto"
+            # Force all model components to same device instead of auto-distribution
+            model_kwargs["device_map"] = {
+                "": self.device  # All modules go to the same device
+            }
         else:
             model_kwargs["device_map"] = None
 
@@ -287,6 +297,9 @@ class TTTTrainer:
 
         # Move to device
         batch = {k: v.to(self.device) for k, v in encoded.items()}
+        
+        # Verify all tensors are on the same device
+        logger.debug(f"Batch tensors device: {[f'{k}:{v.device}' for k, v in batch.items()]}")
 
         # Labels are same as input_ids for causal LM
         batch["labels"] = batch["input_ids"].clone()
