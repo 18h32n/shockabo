@@ -321,15 +321,29 @@ class TTTTrainer:
                 "attention_mask": torch.tensor([[1]] * len(prompts), dtype=torch.long)
             }
 
-        # Move to device
-        batch = {k: v.to(self.device) for k, v in encoded.items()}
+        # Move to device with comprehensive device management
+        batch = {}
+        for k, v in encoded.items():
+            if hasattr(v, 'to'):
+                batch[k] = v.to(self.device, non_blocking=True)
+            else:
+                batch[k] = v
         
         # Verify all tensors are on the same device
-        logger.debug(f"Batch tensors device: {[f'{k}:{v.device}' for k, v in batch.items()]}")
+        device_info = []
+        for k, v in batch.items():
+            if hasattr(v, 'device'):
+                device_info.append(f'{k}:{v.device}')
+        logger.debug(f"Batch tensors device: {device_info}")
         logger.debug(f"Input IDs shape: {batch['input_ids'].shape}, max token: {batch['input_ids'].max().item()}")
+        
+        # Ensure model is on the same device
+        if hasattr(self.model, 'device') and self.model.device != self.device:
+            logger.warning(f"Model device {self.model.device} != target device {self.device}, moving model")
+            self.model = self.model.to(self.device)
 
         # Labels are same as input_ids for causal LM
-        batch["labels"] = batch["input_ids"].clone()
+        batch["labels"] = batch["input_ids"].clone().to(self.device)
 
         return batch
 
@@ -390,8 +404,37 @@ class TTTTrainer:
                     logger.error(f"Batch validation failed: {e}, skipping batch")
                     continue
 
-                # Forward pass with error handling
+                # Forward pass with comprehensive error handling and device validation
                 try:
+                    # Pre-forward device validation
+                    model_device = next(self.model.parameters()).device
+                    batch_devices = {k: v.device if hasattr(v, 'device') else 'cpu' for k, v in batch.items()}
+                    
+                    # Check for device mismatches
+                    mismatched_devices = [f"{k}:{dev}" for k, dev in batch_devices.items() if hasattr(batch[k], 'device') and batch[k].device != model_device]
+                    if mismatched_devices:
+                        logger.error(f"Device mismatch detected: model on {model_device}, batch tensors: {mismatched_devices}")
+                        # Force all batch tensors to model device
+                        for k, v in batch.items():
+                            if hasattr(v, 'to'):
+                                batch[k] = v.to(model_device)
+                        logger.info(f"Moved all batch tensors to {model_device}")
+                    
+                    # Validate tensor shapes and values before forward pass
+                    input_ids = batch["input_ids"]
+                    if input_ids.numel() == 0:
+                        logger.error("Empty input_ids tensor, skipping batch")
+                        continue
+                    
+                    # Additional CUDA-specific validation
+                    if model_device.type == 'cuda':
+                        max_token = input_ids.max().item()
+                        vocab_size = self.model.config.vocab_size
+                        if max_token >= vocab_size:
+                            logger.error(f"Token {max_token} >= vocab_size {vocab_size}, clipping")
+                            batch["input_ids"] = torch.clamp(input_ids, 0, vocab_size - 1)
+                            batch["labels"] = batch["input_ids"].clone()
+                    
                     outputs = self.model(**batch)
                     loss = outputs.loss
                     
@@ -400,8 +443,32 @@ class TTTTrainer:
                         logger.error("Invalid loss (NaN/Inf), skipping batch")
                         continue
                         
+                except RuntimeError as e:
+                    if "CUDA" in str(e) or "device" in str(e).lower():
+                        logger.error(f"CUDA/Device error in forward pass: {e}")
+                        # Try to recover by moving everything to CPU temporarily
+                        if model_device.type == 'cuda':
+                            logger.warning("Attempting recovery by temporary CPU fallback")
+                            try:
+                                cpu_batch = {k: v.cpu() if hasattr(v, 'cpu') else v for k, v in batch.items()}
+                                cpu_model = self.model.cpu()
+                                outputs = cpu_model(**cpu_batch)
+                                loss = outputs.loss
+                                # Move back to CUDA
+                                self.model = self.model.to(model_device)
+                                loss = loss.to(model_device)
+                                logger.info("CPU fallback successful")
+                            except Exception as cpu_e:
+                                logger.error(f"CPU fallback also failed: {cpu_e}, skipping batch")
+                                continue
+                        else:
+                            logger.error(f"Non-recoverable device error: {e}, skipping batch")
+                            continue
+                    else:
+                        logger.error(f"Non-device runtime error: {e}, skipping batch")
+                        continue
                 except Exception as e:
-                    logger.error(f"Forward pass failed: {e}, skipping batch")
+                    logger.error(f"Unexpected error in forward pass: {e}, skipping batch")
                     continue
 
                 # Scale loss for gradient accumulation
