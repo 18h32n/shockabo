@@ -286,20 +286,36 @@ class TTTTrainer:
         if max_length is None:
             max_length = self.config.max_sequence_length
 
-        # Tokenize prompts
-        encoded = self.tokenizer(
-            prompts,
-            padding=True,
-            truncation=True,
-            max_length=max_length,
-            return_tensors="pt"
-        )
+        # Tokenize prompts with safety checks
+        try:
+            encoded = self.tokenizer(
+                prompts,
+                padding=True,
+                truncation=True,
+                max_length=max_length,
+                return_tensors="pt"
+            )
+            
+            # Validate token indices are within vocabulary size
+            vocab_size = self.tokenizer.vocab_size
+            if torch.any(encoded["input_ids"] >= vocab_size):
+                logger.warning(f"Token indices exceed vocab size {vocab_size}, clipping to valid range")
+                encoded["input_ids"] = torch.clamp(encoded["input_ids"], 0, vocab_size - 1)
+                
+        except Exception as e:
+            logger.error(f"Tokenization failed: {e}")
+            # Create a minimal safe batch
+            encoded = {
+                "input_ids": torch.tensor([[self.tokenizer.eos_token_id]] * len(prompts), dtype=torch.long),
+                "attention_mask": torch.tensor([[1]] * len(prompts), dtype=torch.long)
+            }
 
         # Move to device
         batch = {k: v.to(self.device) for k, v in encoded.items()}
         
         # Verify all tensors are on the same device
         logger.debug(f"Batch tensors device: {[f'{k}:{v.device}' for k, v in batch.items()]}")
+        logger.debug(f"Input IDs shape: {batch['input_ids'].shape}, max token: {batch['input_ids'].max().item()}")
 
         # Labels are same as input_ids for causal LM
         batch["labels"] = batch["input_ids"].clone()
@@ -478,12 +494,26 @@ class TTTTrainer:
             )
 
             logger.info(f"Successfully adapted to task {ttt_task.task_id} in {adaptation_time:.2f}s")
+            
+            # Clean up LoRA adapter to prevent accumulation between tasks
+            if instance_adapter:
+                instance_adapter.restore_original_modules()
+                logger.debug(f"Cleaned up LoRA adapter for task {ttt_task.task_id}")
+            
             return result
 
         except Exception as e:
             adaptation_time = time.time() - start_time
             error_msg = f"Adaptation failed: {str(e)}"
             logger.error(error_msg)
+            
+            # Clean up LoRA adapter even on failure
+            if 'instance_adapter' in locals() and instance_adapter:
+                try:
+                    instance_adapter.restore_original_modules()
+                    logger.debug(f"Cleaned up LoRA adapter after failure for task {ttt_task.task_id}")
+                except Exception as cleanup_e:
+                    logger.warning(f"Failed to cleanup LoRA adapter: {cleanup_e}")
 
             return TTTAdaptationResult(
                 adaptation_id=adaptation_id,

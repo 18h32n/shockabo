@@ -354,6 +354,17 @@ class LoRAAdapter:
         for lora_layer in self.lora_layers.values():
             lora_layer.unmerge()
 
+    def restore_original_modules(self) -> None:
+        """Restore original modules, removing LoRA adaptations."""
+        for module_name, original_module in self.original_layers.items():
+            self._replace_module_in_model(module_name, original_module)
+        
+        # Clear LoRA state
+        self.lora_layers.clear()
+        self.original_layers.clear()
+        
+        logger.info(f"Restored {len(self.original_layers)} original modules, removed LoRA adaptations")
+
     def print_trainable_parameters(self) -> None:
         """Print statistics about trainable parameters."""
         stats = self.get_parameter_count()
