@@ -321,29 +321,35 @@ class TTTTrainer:
                 "attention_mask": torch.tensor([[1]] * len(prompts), dtype=torch.long)
             }
 
-        # Move to device with comprehensive device management
+        # Move to device with strict device management - ensure everything stays on same device
+        target_device = self.device
         batch = {}
+        
         for k, v in encoded.items():
             if hasattr(v, 'to'):
-                batch[k] = v.to(self.device, non_blocking=True)
+                # Use blocking transfer to ensure completion
+                batch[k] = v.to(target_device, non_blocking=False)
             else:
                 batch[k] = v
         
-        # Verify all tensors are on the same device
-        device_info = []
+        # Labels are same as input_ids for causal LM - ensure same device
+        batch["labels"] = batch["input_ids"].clone().to(target_device)
+        
+        # Final verification that all tensors are on the same device
+        actual_devices = set()
         for k, v in batch.items():
             if hasattr(v, 'device'):
-                device_info.append(f'{k}:{v.device}')
-        logger.debug(f"Batch tensors device: {device_info}")
-        logger.debug(f"Input IDs shape: {batch['input_ids'].shape}, max token: {batch['input_ids'].max().item()}")
+                actual_devices.add(v.device)
         
-        # Ensure model is on the same device
-        if hasattr(self.model, 'device') and self.model.device != self.device:
-            logger.warning(f"Model device {self.model.device} != target device {self.device}, moving model")
-            self.model = self.model.to(self.device)
-
-        # Labels are same as input_ids for causal LM
-        batch["labels"] = batch["input_ids"].clone().to(self.device)
+        if len(actual_devices) > 1:
+            logger.error(f"Batch has tensors on multiple devices: {actual_devices}")
+            # Force all to target device
+            for k, v in batch.items():
+                if hasattr(v, 'to'):
+                    batch[k] = v.to(target_device)
+        
+        logger.debug(f"All batch tensors confirmed on device: {target_device}")
+        logger.debug(f"Input IDs shape: {batch['input_ids'].shape}, max token: {batch['input_ids'].max().item()}")
 
         return batch
 
@@ -378,6 +384,13 @@ class TTTTrainer:
             "num_steps": 0,
             "avg_loss": 0.0
         }
+
+        # Ensure model is on correct device before training
+        model_device = next(self.model.parameters()).device
+        if model_device != self.device:
+            logger.warning(f"Model device {model_device} != target device {self.device}, moving model")
+            self.model = self.model.to(self.device)
+            model_device = self.device
 
         self.model.train()
 
@@ -444,46 +457,42 @@ class TTTTrainer:
                         continue
                         
                 except RuntimeError as e:
-                    if "CUDA" in str(e) or "device" in str(e).lower():
-                        logger.error(f"CUDA/Device error in forward pass: {e}")
-                        # Try to recover by moving everything to CPU temporarily
-                        if model_device.type == 'cuda':
-                            logger.warning("Attempting recovery by temporary CPU fallback")
-                            try:
-                                cpu_batch = {k: v.cpu() if hasattr(v, 'cpu') else v for k, v in batch.items()}
-                                cpu_model = self.model.cpu()
-                                outputs = cpu_model(**cpu_batch)
-                                loss = outputs.loss
-                                # Move back to CUDA
-                                self.model = self.model.to(model_device)
-                                loss = loss.to(model_device)
-                                logger.info("CPU fallback successful")
-                            except Exception as cpu_e:
-                                logger.error(f"CPU fallback also failed: {cpu_e}, skipping batch")
-                                continue
-                        else:
-                            logger.error(f"Non-recoverable device error: {e}, skipping batch")
-                            continue
-                    else:
-                        logger.error(f"Non-device runtime error: {e}, skipping batch")
-                        continue
+                    logger.error(f"Forward pass failed: {e}")
+                    # Skip problematic CPU fallback that causes device mismatches
+                    continue
                 except Exception as e:
                     logger.error(f"Unexpected error in forward pass: {e}, skipping batch")
                     continue
 
+                # Ensure loss is on the correct device
+                if not hasattr(loss, 'device') or loss.device != model_device:
+                    loss = loss.to(model_device)
+                
                 # Scale loss for gradient accumulation
                 if self.config.gradient_accumulation_steps > 1:
                     loss = loss / self.config.gradient_accumulation_steps
 
-                # Backward pass
-                loss.backward()
+                # Backward pass with device safety
+                try:
+                    loss.backward()
+                except RuntimeError as e:
+                    if "device" in str(e).lower():
+                        logger.error(f"Device error in backward pass: {e}")
+                        continue
+                    else:
+                        raise
 
-                # Update weights
+                # Update weights with device consistency checks
                 if ((metrics["num_steps"] + 1) % self.config.gradient_accumulation_steps == 0):
-                    torch.nn.utils.clip_grad_norm_(
-                        adapter.get_trainable_parameters(),
-                        self.config.max_grad_norm
-                    )
+                    # Ensure all parameters are on the same device
+                    trainable_params = adapter.get_trainable_parameters()
+                    param_devices = {p.device for p in trainable_params if p.grad is not None}
+                    
+                    if len(param_devices) > 1:
+                        logger.error(f"Parameters on multiple devices: {param_devices}")
+                        continue
+                    
+                    torch.nn.utils.clip_grad_norm_(trainable_params, self.config.max_grad_norm)
                     optimizer.step()
                     scheduler.step()
                     optimizer.zero_grad()
