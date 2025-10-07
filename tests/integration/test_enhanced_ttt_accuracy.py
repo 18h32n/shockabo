@@ -405,7 +405,7 @@ def evaluation_data_paths():
 def ttt_config():
     """Fixture providing TTT configuration for testing."""
     return TTTTrainingConfig(
-        model_name="meta-llama/Llama-3.2-1B",
+        model_name="gpt2",  # Use GPT-2 directly to avoid fallback issues
         device="cpu",  # Use CPU for testing
         quantization=False,  # Disable for faster testing
         mixed_precision=False,
@@ -488,7 +488,7 @@ def test_baseline_ttt_accuracy(evaluation_data_paths):
     """
     # Create baseline config (no leave-one-out, no self-consistency)
     baseline_config = TTTTrainingConfig(
-        model_name="meta-llama/Llama-3.2-1B",
+        model_name="gpt2",  # Use GPT-2 directly for consistency
         use_self_consistency=False,
         permute_n=1
     )
@@ -524,7 +524,7 @@ def test_enhanced_ttt_accuracy(evaluation_data_paths):
     """
     # Create enhanced config (leave-one-out, self-consistency, LoRA optimization)
     enhanced_config = TTTTrainingConfig(
-        model_name="meta-llama/Llama-3.2-1B",
+        model_name="gpt2",  # Use GPT-2 directly for consistency
         use_self_consistency=True,
         permute_n=5,
         consensus_threshold=0.6,

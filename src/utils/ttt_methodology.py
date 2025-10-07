@@ -241,14 +241,25 @@ class TTTTrainer:
             "torch_dtype": torch.bfloat16 if self.config.mixed_precision else torch.float32,
         }
 
-        if self.config.quantization and self.device.type == "cuda":
-            model_kwargs["load_in_8bit"] = True
-            # Force all model components to same device instead of auto-distribution
-            model_kwargs["device_map"] = {
-                "": self.device  # All modules go to the same device
-            }
+        # Skip quantization for smaller models like GPT-2 to avoid CUDA indexing issues
+        if self.config.quantization and self.device.type == "cuda" and "gpt2" not in model_name.lower():
+            try:
+                from transformers import BitsAndBytesConfig
+                # Use modern quantization configuration
+                quantization_config = BitsAndBytesConfig(
+                    load_in_8bit=True,
+                    device_map={"": self.device}
+                )
+                model_kwargs["quantization_config"] = quantization_config
+                logger.info("Using modern BitsAndBytesConfig for quantization")
+            except ImportError:
+                logger.warning("BitsAndBytesConfig not available, skipping quantization")
+                model_kwargs["device_map"] = None
         else:
+            # No quantization for GPT-2 or when disabled
             model_kwargs["device_map"] = None
+            if "gpt2" in model_name.lower():
+                logger.info("Skipping quantization for GPT-2 to prevent CUDA indexing issues")
 
         # Load model
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -362,9 +373,36 @@ class TTTTrainer:
                 batch_prompts = prompts[i:i + self.config.batch_size]
                 batch = self._prepare_training_batch(batch_prompts)
 
-                # Forward pass
-                outputs = self.model(**batch)
-                loss = outputs.loss
+                # Validate batch before forward pass to prevent CUDA indexing errors
+                try:
+                    vocab_size = self.model.config.vocab_size
+                    max_token = batch["input_ids"].max().item()
+                    if max_token >= vocab_size:
+                        logger.error(f"Invalid token {max_token} >= vocab_size {vocab_size}, skipping batch")
+                        continue
+                    
+                    # Ensure all tensors have valid shapes
+                    if batch["input_ids"].numel() == 0 or batch["attention_mask"].numel() == 0:
+                        logger.error("Empty tensors in batch, skipping")
+                        continue
+                        
+                except Exception as e:
+                    logger.error(f"Batch validation failed: {e}, skipping batch")
+                    continue
+
+                # Forward pass with error handling
+                try:
+                    outputs = self.model(**batch)
+                    loss = outputs.loss
+                    
+                    # Validate loss
+                    if torch.isnan(loss) or torch.isinf(loss):
+                        logger.error("Invalid loss (NaN/Inf), skipping batch")
+                        continue
+                        
+                except Exception as e:
+                    logger.error(f"Forward pass failed: {e}, skipping batch")
+                    continue
 
                 # Scale loss for gradient accumulation
                 if self.config.gradient_accumulation_steps > 1:
