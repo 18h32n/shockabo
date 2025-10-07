@@ -30,10 +30,10 @@ class TTTTrainingConfig:
     """Configuration for MIT TTT training methodology."""
 
     # Model configuration
-    model_name: str = "meta-llama/Llama-3.2-1B"
+    model_name: str = "gpt2"  # Use GPT-2 directly for stability
     device: str = "auto"
-    quantization: bool = True
-    mixed_precision: bool = True
+    quantization: bool = False  # Disable quantization to prevent CUDA indexing issues
+    mixed_precision: bool = False  # Disable mixed precision to prevent dtype mismatches
 
     # LoRA configuration
     lora_rank: int = 64
@@ -43,8 +43,8 @@ class TTTTrainingConfig:
 
     # Training hyperparameters
     learning_rate: float = 5e-5
-    num_epochs: int = 2
-    batch_size: int = 2
+    num_epochs: int = 1  # Reduce epochs for faster validation
+    batch_size: int = 1  # Use smaller batch size for stability
     gradient_accumulation_steps: int = 1
     max_grad_norm: float = 1.0
     warmup_ratio: float = 0.1
@@ -234,11 +234,11 @@ class TTTTrainer:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # Model loading configuration
+        # Model loading configuration - force float32 for stability
         model_kwargs = {
             "cache_dir": self.config.cache_dir,
             "trust_remote_code": True,
-            "torch_dtype": torch.bfloat16 if self.config.mixed_precision else torch.float32,
+            "torch_dtype": torch.float32,  # Always use float32 to prevent dtype mismatches
         }
 
         # Skip quantization for smaller models like GPT-2 to avoid CUDA indexing issues

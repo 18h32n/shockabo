@@ -19,15 +19,20 @@ from infrastructure.config import Platform, PlatformDetector
 
 def setup_logging() -> logging.Logger:
     """Set up logging for Kaggle environment."""
+    # Log to current working directory (project root)
+    log_file = Path.cwd() / 'kaggle_setup.log'
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler('/kaggle/working/kaggle_setup.log')
+            logging.FileHandler(log_file)
         ]
     )
-    return logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging setup complete, log file: {log_file}")
+    return logger
 
 
 def check_kaggle_environment() -> bool:
@@ -277,6 +282,84 @@ def run_validation_tests(logger: logging.Logger) -> bool:
     return tests_passed
 
 
+def setup_cuda_environment(logger: logging.Logger) -> None:
+    """Set up CUDA environment for enhanced debugging and stability."""
+    logger.info("Setting up CUDA environment...")
+    
+    # Set CUDA environment variables for better debugging
+    cuda_env_vars = {
+        'CUDA_LAUNCH_BLOCKING': '1',  # Synchronous CUDA calls for better error reporting
+        'TORCH_USE_CUDA_DSA': '1',    # Enable device-side assertions
+        'CUDA_VISIBLE_DEVICES': '0',  # Force single GPU to avoid device mismatch
+        'PYTORCH_CUDA_ALLOC_CONF': 'max_split_size_mb:128',  # Better memory management
+        'TORCH_CUDNN_V8_API_ENABLED': '1',  # Use cuDNN v8 API
+        'CUBLAS_WORKSPACE_CONFIG': ':4096:8',  # Deterministic CUBLAS operations
+    }
+    
+    for var, value in cuda_env_vars.items():
+        os.environ[var] = value
+        logger.info(f"Set {var}={value}")
+    
+    # Test CUDA availability and configuration
+    try:
+        import torch
+        if torch.cuda.is_available():
+            device_count = torch.cuda.device_count()
+            current_device = torch.cuda.current_device()
+            device_name = torch.cuda.get_device_name(0)
+            
+            logger.info(f"CUDA Status: Available with {device_count} devices")
+            logger.info(f"Current device: {current_device}")
+            logger.info(f"Device 0: {device_name}")
+            
+            # Force PyTorch to use cuda:0 explicitly
+            torch.cuda.set_device(0)
+            logger.info("Forced PyTorch to use cuda:0")
+            
+            # Test basic CUDA operations
+            test_tensor = torch.tensor([1.0, 2.0, 3.0]).cuda()
+            test_result = test_tensor.sum()
+            logger.info(f"CUDA test passed: {test_result.item()}")
+            
+        else:
+            logger.warning("CUDA not available")
+    except Exception as e:
+        logger.error(f"CUDA setup error: {e}")
+
+
+def setup_mixed_precision_config(logger: logging.Logger) -> None:
+    """Configure mixed precision settings to prevent dtype mismatches."""
+    logger.info("Setting up mixed precision configuration...")
+    
+    # Set environment variables for consistent mixed precision
+    precision_env_vars = {
+        'TORCH_ALLOW_TF32_CUBLAS_OVERRIDE': '0',  # Disable TF32 for consistency
+        'TORCH_CUDNN_ALLOW_TF32': '0',           # Disable TF32 in cuDNN
+    }
+    
+    for var, value in precision_env_vars.items():
+        os.environ[var] = value
+        logger.info(f"Set {var}={value}")
+    
+    # Test dtype consistency
+    try:
+        import torch
+        if torch.cuda.is_available():
+            # Test different precision modes
+            fp32_tensor = torch.tensor([1.0, 2.0]).cuda().float()
+            bf16_tensor = torch.tensor([1.0, 2.0]).cuda().bfloat16()
+            
+            logger.info(f"FP32 tensor dtype: {fp32_tensor.dtype}")
+            logger.info(f"BF16 tensor dtype: {bf16_tensor.dtype}")
+            
+            # Test conversion
+            converted = bf16_tensor.float()
+            logger.info(f"BF16->FP32 conversion successful: {converted.dtype}")
+            
+    except Exception as e:
+        logger.error(f"Mixed precision setup error: {e}")
+
+
 def main():
     """Main setup function for Kaggle platform."""
     print("=" * 60)
@@ -306,7 +389,13 @@ def main():
         # Step 4: Configure environment
         configure_environment_variables(logger, directories)
 
-        # Step 5: Apply optimizations
+        # Step 5: Set up CUDA environment (CRITICAL for fixing device-side asserts)
+        setup_cuda_environment(logger)
+        
+        # Step 6: Configure mixed precision (CRITICAL for fixing dtype mismatches)
+        setup_mixed_precision_config(logger)
+
+        # Step 7: Apply optimizations
         optimize_for_kaggle(logger)
 
         # Step 6: Create config
