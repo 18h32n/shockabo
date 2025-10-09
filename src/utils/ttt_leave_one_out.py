@@ -137,7 +137,7 @@ class LeaveOneOutGenerator:
         Raises:
             ValueError: If grid validation fails
         """
-        if not isinstance(grid, (list, np.ndarray)):
+        if not isinstance(grid, list | np.ndarray):
             raise ValueError(f"{name} must be a list or numpy array, got {type(grid)}")
 
         if isinstance(grid, np.ndarray):
@@ -160,7 +160,7 @@ class LeaveOneOutGenerator:
                 raise ValueError(f"{name} has inconsistent row lengths")
 
             for col_idx, value in enumerate(row):
-                if not isinstance(value, (int, np.integer)):
+                if not isinstance(value, int | np.integer):
                     raise ValueError(
                         f"{name}[{row_idx}][{col_idx}] must be an integer, got {type(value)}"
                     )

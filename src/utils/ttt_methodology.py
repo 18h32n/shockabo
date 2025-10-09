@@ -166,11 +166,11 @@ class TTTTrainer:
         self.base_adapter = None
         self.data_converter = TTTDataConverter(use_gpt_format=True)
         self.voter = SelfConsistencyVoter(temperature=config.temperature)
-        
+
         # Initialize leave-one-out generator for per-instance adaptation
         loo_config = LeaveOneOutConfig(min_examples=2, max_examples=10)
         self.loo_generator = LeaveOneOutGenerator(loo_config)
-        
+
         # Initialize self-consistency validator
         sc_config = SelfConsistencyConfig(
             permute_n=config.permute_n,
@@ -185,7 +185,7 @@ class TTTTrainer:
         self.training_history = []
 
         logger.info(f"Initialized TTT trainer with device: {self.device}")
-        
+
         # Add device debugging for multi-GPU environments
         if torch.cuda.is_available():
             logger.info(f"CUDA device count: {torch.cuda.device_count()}")
@@ -306,13 +306,13 @@ class TTTTrainer:
                 max_length=max_length,
                 return_tensors="pt"
             )
-            
+
             # Validate token indices are within vocabulary size
             vocab_size = self.tokenizer.vocab_size
             if torch.any(encoded["input_ids"] >= vocab_size):
                 logger.warning(f"Token indices exceed vocab size {vocab_size}, clipping to valid range")
                 encoded["input_ids"] = torch.clamp(encoded["input_ids"], 0, vocab_size - 1)
-                
+
         except Exception as e:
             logger.error(f"Tokenization failed: {e}")
             # Create a minimal safe batch
@@ -324,30 +324,30 @@ class TTTTrainer:
         # Move to device with strict device management - ensure everything stays on same device
         target_device = self.device
         batch = {}
-        
+
         for k, v in encoded.items():
             if hasattr(v, 'to'):
                 # Use blocking transfer to ensure completion
                 batch[k] = v.to(target_device, non_blocking=False)
             else:
                 batch[k] = v
-        
+
         # Labels are same as input_ids for causal LM - ensure same device
         batch["labels"] = batch["input_ids"].clone().to(target_device)
-        
+
         # Final verification that all tensors are on the same device
         actual_devices = set()
-        for k, v in batch.items():
+        for _k, v in batch.items():
             if hasattr(v, 'device'):
                 actual_devices.add(v.device)
-        
+
         if len(actual_devices) > 1:
             logger.error(f"Batch has tensors on multiple devices: {actual_devices}")
             # Force all to target device
             for k, v in batch.items():
                 if hasattr(v, 'to'):
                     batch[k] = v.to(target_device)
-        
+
         logger.debug(f"All batch tensors confirmed on device: {target_device}")
         logger.debug(f"Input IDs shape: {batch['input_ids'].shape}, max token: {batch['input_ids'].max().item()}")
 
@@ -407,12 +407,12 @@ class TTTTrainer:
                     if max_token >= vocab_size:
                         logger.error(f"Invalid token {max_token} >= vocab_size {vocab_size}, skipping batch")
                         continue
-                    
+
                     # Ensure all tensors have valid shapes
                     if batch["input_ids"].numel() == 0 or batch["attention_mask"].numel() == 0:
                         logger.error("Empty tensors in batch, skipping")
                         continue
-                        
+
                 except Exception as e:
                     logger.error(f"Batch validation failed: {e}, skipping batch")
                     continue
@@ -422,7 +422,7 @@ class TTTTrainer:
                     # Pre-forward device validation
                     model_device = next(self.model.parameters()).device
                     batch_devices = {k: v.device if hasattr(v, 'device') else 'cpu' for k, v in batch.items()}
-                    
+
                     # Check for device mismatches
                     mismatched_devices = [f"{k}:{dev}" for k, dev in batch_devices.items() if hasattr(batch[k], 'device') and batch[k].device != model_device]
                     if mismatched_devices:
@@ -432,13 +432,13 @@ class TTTTrainer:
                             if hasattr(v, 'to'):
                                 batch[k] = v.to(model_device)
                         logger.info(f"Moved all batch tensors to {model_device}")
-                    
+
                     # Validate tensor shapes and values before forward pass
                     input_ids = batch["input_ids"]
                     if input_ids.numel() == 0:
                         logger.error("Empty input_ids tensor, skipping batch")
                         continue
-                    
+
                     # Additional CUDA-specific validation
                     if model_device.type == 'cuda':
                         max_token = input_ids.max().item()
@@ -447,15 +447,15 @@ class TTTTrainer:
                             logger.error(f"Token {max_token} >= vocab_size {vocab_size}, clipping")
                             batch["input_ids"] = torch.clamp(input_ids, 0, vocab_size - 1)
                             batch["labels"] = batch["input_ids"].clone()
-                    
+
                     outputs = self.model(**batch)
                     loss = outputs.loss
-                    
+
                     # Validate loss
                     if torch.isnan(loss) or torch.isinf(loss):
                         logger.error("Invalid loss (NaN/Inf), skipping batch")
                         continue
-                        
+
                 except RuntimeError as e:
                     logger.error(f"Forward pass failed: {e}")
                     # Skip problematic CPU fallback that causes device mismatches
@@ -467,7 +467,7 @@ class TTTTrainer:
                 # Ensure loss is on the correct device
                 if not hasattr(loss, 'device') or loss.device != model_device:
                     loss = loss.to(model_device)
-                
+
                 # Scale loss for gradient accumulation
                 if self.config.gradient_accumulation_steps > 1:
                     loss = loss / self.config.gradient_accumulation_steps
@@ -487,11 +487,11 @@ class TTTTrainer:
                     # Ensure all parameters are on the same device
                     trainable_params = adapter.get_trainable_parameters()
                     param_devices = {p.device for p in trainable_params if p.grad is not None}
-                    
+
                     if len(param_devices) > 1:
                         logger.error(f"Parameters on multiple devices: {param_devices}")
                         continue
-                    
+
                     torch.nn.utils.clip_grad_norm_(trainable_params, self.config.max_grad_norm)
                     optimizer.step()
                     scheduler.step()
@@ -608,19 +608,19 @@ class TTTTrainer:
             )
 
             logger.info(f"Successfully adapted to task {ttt_task.task_id} in {adaptation_time:.2f}s")
-            
+
             # Clean up LoRA adapter to prevent accumulation between tasks
             if instance_adapter:
                 instance_adapter.restore_original_modules()
                 logger.debug(f"Cleaned up LoRA adapter for task {ttt_task.task_id}")
-            
+
             return result
 
         except Exception as e:
             adaptation_time = time.time() - start_time
             error_msg = f"Adaptation failed: {str(e)}"
             logger.error(error_msg)
-            
+
             # Clean up LoRA adapter even on failure
             if 'instance_adapter' in locals() and instance_adapter:
                 try:

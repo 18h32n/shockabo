@@ -319,7 +319,7 @@ class TTTDataConverter:
         """
         self.representer = TextTaskRepresenter(use_gpt_format)
         self.augmenter = AugmentationEngine(random_seed)
-        
+
         # Initialize leave-one-out generator
         loo_config = LeaveOneOutConfig(min_examples=2, max_examples=10)
         self.loo_generator = LeaveOneOutGenerator(loo_config)
@@ -391,10 +391,10 @@ class TTTDataConverter:
             {"input": ex.input_grid, "output": ex.output_grid}
             for ex in examples
         ]
-        
+
         # Generate leave-one-out splits
         loo_splits = self.loo_generator.generate_splits(train_examples_dict)
-        
+
         # Convert splits back to TTTExample format and combine with augmented examples
         leave_one_out_splits = []
         for split in loo_splits:
@@ -412,7 +412,7 @@ class TTTDataConverter:
                     metadata={"original": True, "split_id": split.split_id}
                 )
                 training_set.append(ttt_example)
-            
+
             # Add all augmented examples to each split
             training_set.extend(augmented_examples)
             leave_one_out_splits.append(training_set)

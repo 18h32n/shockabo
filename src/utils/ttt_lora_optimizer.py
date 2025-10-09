@@ -161,7 +161,7 @@ class LoRAOptimizer:
         Returns:
             Learning rate scheduler
         """
-        from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, LambdaLR
+        from torch.optim.lr_scheduler import LambdaLR
 
         num_warmup_steps = int(num_training_steps * self.config.warmup_ratio)
 
@@ -205,7 +205,7 @@ class LoRAOptimizer:
         )
 
         self.early_stopping_state.metrics_history.append(metrics)
-        
+
         val_loss_str = f"{validation_loss:.6f}" if validation_loss is not None else "N/A"
         logger.debug(
             f"Epoch {epoch}: train_loss={train_loss:.6f}, "
