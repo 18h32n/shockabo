@@ -667,28 +667,39 @@ class TTTTrainer:
                 # Create inference prompt
                 inference_prompt = self.data_converter.create_inference_prompt(ttt_task)
 
-                # Tokenize prompt
-                inputs = self.tokenizer.encode(
+                # Tokenize prompt with proper attention mask
+                # Use tokenizer() instead of encode() to get attention_mask
+                inputs = self.tokenizer(
                     inference_prompt,
                     return_tensors="pt",
                     max_length=self.config.max_sequence_length,
-                    truncation=True
-                ).to(self.device)
+                    truncation=True,
+                    padding=False  # Don't pad single sequences
+                )
+                
+                # Move to device
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
                 # Generate prediction
                 self.model.eval()
                 with torch.no_grad():
-                    # Calculate safe max_new_tokens to prevent exceeding model's max length
-                    input_length = inputs.shape[1]
-                    safe_max_new_tokens = max(100, self.config.max_sequence_length - input_length - 10)  # -10 for safety margin
+                    # Get model's actual max position embeddings
+                    model_max_length = getattr(self.model.config, 'max_position_embeddings', 1024)
+                    
+                    # Calculate safe max_new_tokens based on model's true limits
+                    input_length = inputs["input_ids"].shape[1]
+                    safe_max_new_tokens = min(
+                        200,  # Cap at 200 tokens for efficiency
+                        max(50, model_max_length - input_length - 20)  # 20 token safety margin
+                    )
 
                     outputs = self.model.generate(
-                        inputs,
+                        **inputs,  # Unpack dict to pass input_ids and attention_mask
                         max_new_tokens=safe_max_new_tokens,
                         temperature=self.config.temperature,
                         do_sample=self.config.temperature > 0,
                         num_return_sequences=self.config.num_return_sequences,
-                        pad_token_id=self.tokenizer.pad_token_id,
+                        pad_token_id=self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id,
                         eos_token_id=self.tokenizer.eos_token_id,
                         use_cache=True
                     )
