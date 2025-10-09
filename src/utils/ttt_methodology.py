@@ -678,9 +678,13 @@ class TTTTrainer:
                 # Generate prediction
                 self.model.eval()
                 with torch.no_grad():
+                    # Calculate safe max_new_tokens to prevent exceeding model's max length
+                    input_length = inputs.shape[1]
+                    safe_max_new_tokens = max(100, self.config.max_sequence_length - input_length - 10)  # -10 for safety margin
+
                     outputs = self.model.generate(
                         inputs,
-                        max_new_tokens=500,
+                        max_new_tokens=safe_max_new_tokens,
                         temperature=self.config.temperature,
                         do_sample=self.config.temperature > 0,
                         num_return_sequences=self.config.num_return_sequences,
