@@ -686,12 +686,22 @@ class TTTTrainer:
                     # Get model's actual max position embeddings
                     model_max_length = getattr(self.model.config, 'max_position_embeddings', 1024)
                     
-                    # Calculate safe max_new_tokens based on model's true limits
+                    # Calculate safe max_new_tokens ensuring TOTAL length doesn't exceed model's limit
                     input_length = inputs["input_ids"].shape[1]
-                    safe_max_new_tokens = min(
-                        200,  # Cap at 200 tokens for efficiency
-                        max(50, model_max_length - input_length - 20)  # 20 token safety margin
-                    )
+                    available_tokens = model_max_length - input_length - 20  # 20 token safety margin
+                    
+                    # Ensure we don't try to generate if input is already too long
+                    if available_tokens <= 0:
+                        logger.warning(f"Input length {input_length} exceeds model limit {model_max_length}, truncating input")
+                        # Truncate input to leave room for generation
+                        inputs["input_ids"] = inputs["input_ids"][:, :model_max_length - 220]  # Leave 200 tokens for generation
+                        if "attention_mask" in inputs:
+                            inputs["attention_mask"] = inputs["attention_mask"][:, :model_max_length - 220]
+                        input_length = inputs["input_ids"].shape[1]
+                        available_tokens = 200
+                    
+                    # Cap at reasonable size for efficiency, but never exceed available tokens
+                    safe_max_new_tokens = min(200, max(10, available_tokens))  # At least 10, at most 200
 
                     outputs = self.model.generate(
                         **inputs,  # Unpack dict to pass input_ids and attention_mask
